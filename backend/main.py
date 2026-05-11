@@ -36,10 +36,17 @@ AP_BACKEND = Path(os.environ.get(
     'AP_BACKEND',
     '/Users/jungosakamoto/Claude/dev/products/auto-poster/backend'
 ))
+# Load AP_BACKEND .env once at startup (override=False: don't overwrite already-set vars)
+_ap_env = AP_BACKEND / '.env'
+if _ap_env.exists():
+    load_dotenv(_ap_env, override=False)
 SETTINGS_PATH = Path(os.environ.get(
     'UWORD_SETTINGS_PATH',
     '/Users/jungosakamoto/Claude/dev/products/uword-poster-ui/backend/auto_settings.json'
 ))
+
+# Valid platform identifiers (used for input validation)
+_VALID_PLATFORMS = {"uword", "umatching", "facebook", "instagram", "threads", "note", "x_twitter", "linkedin"}
 BOILERPLATE_PATH = Path(os.environ.get(
     'UWORD_BOILERPLATE_PATH',
     '/Users/jungosakamoto/Claude/dev/products/uword-poster-ui/backend/boilerplate.json'
@@ -334,8 +341,6 @@ async def save_auto_settings(settings: AutoSettings):
 async def _auto_post_job(platform: str):
     """スケジュール実行: ソースからコンテンツ生成→投稿"""
     import random
-    from dotenv import load_dotenv
-    load_dotenv(AP_BACKEND / '.env')
 
     settings = _load_settings()
     gen_config = next((g for g in settings.generation if g.platform == platform), None)
@@ -376,7 +381,6 @@ JSON形式: {{"title": "", "content": "...", "hashtags": [...]}}"""
     if not row:
         return
 
-    from dotenv import load_dotenv as _ldenv
     _ldenv(AP_BACKEND / '.env')
     from services.poster.encryption import decrypt_credentials
     creds = decrypt_credentials(row[0])
@@ -448,6 +452,8 @@ async def list_jobs():
 @app.post("/api/scheduler/run-now/{platform}")
 async def run_now(platform: str):
     """即時実行（テスト用）"""
+    if platform not in _VALID_PLATFORMS:
+        return {"success": False, "error": f"Invalid platform: {platform}"}
     import asyncio
     asyncio.create_task(_auto_post_job(platform))
     return {"ok": True, "message": f"{platform} の自動生成・投稿を開始しました"}
@@ -485,8 +491,6 @@ def _merge_boilerplate(platform: str, content: str, hashtag_list: list[str], has
 
 @app.post("/api/post", response_model=PostResponse)
 async def post_content(req: PostRequest):
-    from dotenv import load_dotenv
-    load_dotenv(AP_BACKEND / ".env")
     from services.poster.encryption import decrypt_credentials
 
     db_path = AP_BACKEND / "data" / "autopost.db"
@@ -574,7 +578,6 @@ async def post_with_image(
         }
     else:
         from dotenv import load_dotenv
-        load_dotenv(AP_BACKEND / ".env")
         from services.poster.encryption import decrypt_credentials
 
         db_path = AP_BACKEND / "data" / "autopost.db"
@@ -653,8 +656,6 @@ async def post_with_image(
 @app.post("/api/generate", response_model=GenerateResponse)
 async def generate_content(req: GenerateRequest):
     import urllib.request
-    from dotenv import load_dotenv
-    load_dotenv(AP_BACKEND / ".env")
 
     api_key = os.environ.get('GEMINI_API_KEY', '')
     if not api_key:
@@ -775,8 +776,6 @@ async def summarize_url_endpoint(req: SummarizeRequest):
     import urllib.request as _req_lib
     import html as _html_lib
     import re as _re_lib
-    from dotenv import load_dotenv
-    load_dotenv(AP_BACKEND / ".env")
 
     if not _validate_url(req.url):
         from fastapi import HTTPException
@@ -876,8 +875,6 @@ async def summarize_url_endpoint(req: SummarizeRequest):
 async def generate_image_endpoint(req: ImageGenRequest):
     """投稿内容からGeminiで画像を生成する。プロンプト未指定時は自動生成。"""
     import urllib.request as _req_lib
-    from dotenv import load_dotenv
-    load_dotenv(AP_BACKEND / ".env")
 
     api_key = os.environ.get('GEMINI_API_KEY', '')
     if not api_key:
@@ -997,8 +994,6 @@ def _merge_boilerplate_with_creds(content: str, platform: str, hashtags_str: str
 
 def _get_creds_for_platform(platform: str):
     """DB から有効なクレデンシャルを取得して復号する。見つからなければ None を返す。"""
-    from dotenv import load_dotenv
-    load_dotenv(AP_BACKEND / ".env")
     from services.poster.encryption import decrypt_credentials
 
     db_path = AP_BACKEND / "data" / "autopost.db"
@@ -1279,7 +1274,6 @@ async def post_with_healing_endpoint(
             "post_url": cred_post_url or cred_site_url,
         }
     else:
-        load_dotenv(AP_BACKEND / '.env')
         from services.poster.encryption import decrypt_credentials
 
         db_path = AP_BACKEND / 'data' / 'autopost.db'
@@ -1430,9 +1424,9 @@ async def run_weekly_review(dry_run: bool = False):
 @app.get("/api/diagnose/{platform}")
 async def diagnose_platform(platform: str):
     """Playwright でプラットフォームのページ状態を診断"""
+    if platform not in {"uword", "umatching"}:
+        return {"ok": False, "error": f"Unsupported platform: {platform}", "checks": []}
     import datetime
-    from dotenv import load_dotenv
-    load_dotenv(AP_BACKEND / '.env')
     from services.poster.encryption import decrypt_credentials
     from playwright.async_api import async_playwright
 

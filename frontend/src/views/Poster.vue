@@ -39,6 +39,7 @@
             <span class="plat-icon">{{ p.icon }}</span>
             <span class="plat-name">{{ p.name }}</span>
             <span v-if="p.has_poster" class="plat-poster-badge">投稿</span>
+            <span v-if="!p.has_poster" class="gen-only-badge">生成のみ</span>
           </button>
         </div>
 
@@ -599,78 +600,143 @@
       <section class="settings-section">
         <h3>🔑 ログイン情報（アカウント設定）</h3>
         <div class="creds-form">
-          <div class="settings-platform-title">リアルタイム速報</div>
-          <div class="creds-grid">
-            <label>ユーザー名 / メール</label>
-            <input v-model="creds.uword.username" type="text" placeholder="sakajungo@gmail.com" />
-            <label>パスワード</label>
-            <input v-model="creds.uword.password" type="password" placeholder="パスワード" />
-            <label>サイトURL（ログインページ）</label>
-            <input v-model="creds.uword.site_url" type="url" placeholder="https://u-word.com/horby/login" />
-            <label>投稿URL</label>
-            <input v-model="creds.uword.post_url" type="url" placeholder="https://u-word.com/horby/myPage/realTimePost" />
+          <!-- uword -->
+          <div class="cred-accordion">
+            <button class="cred-header" @click="toggleCred('uword')">
+              <span>📰 リアルタイム速報</span>
+              <span :class="hasCredential('uword') ? 'badge-ok' : 'badge-warn'">{{ hasCredential('uword') ? '✅ 設定済' : '⚠️ 未設定' }}</span>
+              <span class="cred-arrow">{{ openCred === 'uword' ? '▲' : '▼' }}</span>
+            </button>
+            <div v-show="openCred === 'uword'" class="cred-body">
+              <div class="creds-grid">
+                <label>ユーザー名 / メール</label>
+                <input v-model="creds.uword.username" type="text" placeholder="sakajungo@gmail.com" />
+                <label>パスワード</label>
+                <input v-model="creds.uword.password" type="password" placeholder="パスワード" />
+                <label>サイトURL（ログインページ）</label>
+                <input v-model="creds.uword.site_url" type="url" placeholder="https://u-word.com/horby/login" />
+                <label>投稿URL</label>
+                <input v-model="creds.uword.post_url" type="url" placeholder="https://u-word.com/horby/myPage/realTimePost" />
+              </div>
+            </div>
           </div>
-
-          <div class="settings-platform-title">ミニブログ</div>
-          <div class="creds-grid">
-            <label>ユーザー名 / メール</label>
-            <input v-model="creds.umatching.username" type="text" placeholder="your@email.com" />
-            <label>パスワード</label>
-            <input v-model="creds.umatching.password" type="password" placeholder="パスワード" />
-            <label>サイトURL（ログインページ）</label>
-            <input v-model="creds.umatching.site_url" type="url" placeholder="https://u-word.com/horby/login" />
-            <label>投稿URL</label>
-            <input v-model="creds.umatching.post_url" type="url" placeholder="https://u-word.com/horby/myPage/blogPost" />
+          <!-- umatching -->
+          <div class="cred-accordion">
+            <button class="cred-header" @click="toggleCred('umatching')">
+              <span>📝 ミニブログ</span>
+              <span :class="hasCredential('umatching') ? 'badge-ok' : 'badge-warn'">{{ hasCredential('umatching') ? '✅ 設定済' : '⚠️ 未設定' }}</span>
+              <span class="cred-arrow">{{ openCred === 'umatching' ? '▲' : '▼' }}</span>
+            </button>
+            <div v-show="openCred === 'umatching'" class="cred-body">
+              <div class="creds-grid">
+                <label>ユーザー名 / メール</label>
+                <input v-model="creds.umatching.username" type="text" placeholder="your@email.com" />
+                <label>パスワード</label>
+                <input v-model="creds.umatching.password" type="password" placeholder="パスワード" />
+                <label>サイトURL（ログインページ）</label>
+                <input v-model="creds.umatching.site_url" type="url" placeholder="https://u-word.com/horby/login" />
+                <label>投稿URL</label>
+                <input v-model="creds.umatching.post_url" type="url" placeholder="https://u-word.com/horby/myPage/blogPost" />
+              </div>
+            </div>
           </div>
-
-          <div class="settings-platform-title">Facebook</div>
-          <div class="creds-grid">
-            <label>ユーザー名 / メール</label>
-            <input v-model="creds.facebook.username" type="text" placeholder="your@email.com" />
-            <label>パスワード</label>
-            <input v-model="creds.facebook.password" type="password" placeholder="パスワード" />
+          <!-- facebook -->
+          <div class="cred-accordion">
+            <button class="cred-header" @click="toggleCred('facebook')">
+              <span>🔵 Facebook</span>
+              <span :class="hasCredential('facebook') ? 'badge-ok' : 'badge-warn'">{{ hasCredential('facebook') ? '✅ 設定済' : '⚠️ 未設定' }}</span>
+              <span class="cred-arrow">{{ openCred === 'facebook' ? '▲' : '▼' }}</span>
+            </button>
+            <div v-show="openCred === 'facebook'" class="cred-body">
+              <div class="creds-grid">
+                <label>ユーザー名 / メール</label>
+                <input v-model="creds.facebook.username" type="text" placeholder="your@email.com" />
+                <label>パスワード</label>
+                <input v-model="creds.facebook.password" type="password" placeholder="パスワード" />
+              </div>
+            </div>
           </div>
-
-          <div class="settings-platform-title">Instagram</div>
-          <div class="creds-grid">
-            <label>ユーザー名 / メール</label>
-            <input v-model="creds.instagram.username" type="text" placeholder="your@email.com" />
-            <label>パスワード</label>
-            <input v-model="creds.instagram.password" type="password" placeholder="パスワード" />
+          <!-- instagram -->
+          <div class="cred-accordion">
+            <button class="cred-header" @click="toggleCred('instagram')">
+              <span>📸 Instagram</span>
+              <span :class="hasCredential('instagram') ? 'badge-ok' : 'badge-warn'">{{ hasCredential('instagram') ? '✅ 設定済' : '⚠️ 未設定' }}</span>
+              <span class="cred-arrow">{{ openCred === 'instagram' ? '▲' : '▼' }}</span>
+            </button>
+            <div v-show="openCred === 'instagram'" class="cred-body">
+              <div class="creds-grid">
+                <label>ユーザー名 / メール</label>
+                <input v-model="creds.instagram.username" type="text" placeholder="your@email.com" />
+                <label>パスワード</label>
+                <input v-model="creds.instagram.password" type="password" placeholder="パスワード" />
+              </div>
+            </div>
           </div>
-
-          <div class="settings-platform-title">Threads</div>
-          <div class="creds-grid">
-            <label>ユーザー名 / メール</label>
-            <input v-model="creds.threads.username" type="text" placeholder="your@email.com" />
-            <label>パスワード</label>
-            <input v-model="creds.threads.password" type="password" placeholder="パスワード" />
+          <!-- threads -->
+          <div class="cred-accordion">
+            <button class="cred-header" @click="toggleCred('threads')">
+              <span>🧵 Threads</span>
+              <span :class="hasCredential('threads') ? 'badge-ok' : 'badge-warn'">{{ hasCredential('threads') ? '✅ 設定済' : '⚠️ 未設定' }}</span>
+              <span class="cred-arrow">{{ openCred === 'threads' ? '▲' : '▼' }}</span>
+            </button>
+            <div v-show="openCred === 'threads'" class="cred-body">
+              <div class="creds-grid">
+                <label>ユーザー名 / メール</label>
+                <input v-model="creds.threads.username" type="text" placeholder="your@email.com" />
+                <label>パスワード</label>
+                <input v-model="creds.threads.password" type="password" placeholder="パスワード" />
+              </div>
+            </div>
           </div>
-
-          <div class="settings-platform-title">Note</div>
-          <div class="creds-grid">
-            <label>ユーザー名 / メール</label>
-            <input v-model="creds.note.username" type="text" placeholder="your@email.com" />
-            <label>パスワード</label>
-            <input v-model="creds.note.password" type="password" placeholder="パスワード" />
-            <label>Cookie（任意）</label>
-            <input v-model="creds.note.cookie" type="text" placeholder="note_session=..." />
+          <!-- note -->
+          <div class="cred-accordion">
+            <button class="cred-header" @click="toggleCred('note')">
+              <span>📖 Note</span>
+              <span :class="hasCredential('note') ? 'badge-ok' : 'badge-warn'">{{ hasCredential('note') ? '✅ 設定済' : '⚠️ 未設定' }}</span>
+              <span class="cred-arrow">{{ openCred === 'note' ? '▲' : '▼' }}</span>
+            </button>
+            <div v-show="openCred === 'note'" class="cred-body">
+              <div class="creds-grid">
+                <label>ユーザー名 / メール</label>
+                <input v-model="creds.note.username" type="text" placeholder="your@email.com" />
+                <label>パスワード</label>
+                <input v-model="creds.note.password" type="password" placeholder="パスワード" />
+                <label>Cookie（任意）</label>
+                <input v-model="creds.note.cookie" type="text" placeholder="note_session=..." />
+              </div>
+            </div>
           </div>
-
-          <div class="settings-platform-title">X (Twitter)</div>
-          <div class="creds-grid">
-            <label>ユーザー名 / メール</label>
-            <input v-model="creds.x_twitter.username" type="text" placeholder="your@email.com" />
-            <label>パスワード</label>
-            <input v-model="creds.x_twitter.password" type="password" placeholder="パスワード" />
+          <!-- x_twitter -->
+          <div class="cred-accordion">
+            <button class="cred-header" @click="toggleCred('x_twitter')">
+              <span>✖️ X (Twitter)</span>
+              <span :class="hasCredential('x_twitter') ? 'badge-ok' : 'badge-warn'">{{ hasCredential('x_twitter') ? '✅ 設定済' : '⚠️ 未設定' }}</span>
+              <span class="cred-arrow">{{ openCred === 'x_twitter' ? '▲' : '▼' }}</span>
+            </button>
+            <div v-show="openCred === 'x_twitter'" class="cred-body">
+              <div class="creds-grid">
+                <label>ユーザー名 / メール</label>
+                <input v-model="creds.x_twitter.username" type="text" placeholder="your@email.com" />
+                <label>パスワード</label>
+                <input v-model="creds.x_twitter.password" type="password" placeholder="パスワード" />
+              </div>
+            </div>
           </div>
-
-          <div class="settings-platform-title">LinkedIn</div>
-          <div class="creds-grid">
-            <label>ユーザー名 / メール</label>
-            <input v-model="creds.linkedin.username" type="text" placeholder="your@email.com" />
-            <label>パスワード</label>
-            <input v-model="creds.linkedin.password" type="password" placeholder="パスワード" />
+          <!-- linkedin -->
+          <div class="cred-accordion">
+            <button class="cred-header" @click="toggleCred('linkedin')">
+              <span>💼 LinkedIn</span>
+              <span :class="hasCredential('linkedin') ? 'badge-ok' : 'badge-warn'">{{ hasCredential('linkedin') ? '✅ 設定済' : '⚠️ 未設定' }}</span>
+              <span class="cred-arrow">{{ openCred === 'linkedin' ? '▲' : '▼' }}</span>
+            </button>
+            <div v-show="openCred === 'linkedin'" class="cred-body">
+              <div class="creds-grid">
+                <label>ユーザー名 / メール</label>
+                <input v-model="creds.linkedin.username" type="text" placeholder="your@email.com" />
+                <label>パスワード</label>
+                <input v-model="creds.linkedin.password" type="password" placeholder="パスワード" />
+              </div>
+            </div>
           </div>
 
           <button @click="saveCreds" class="btn-save-creds">💾 保存（ブラウザに記憶）</button>
@@ -752,7 +818,16 @@ interface DiagResult {
 type PageTab = 'post' | 'auto' | 'review' | 'diagnose' | 'logs' | 'settings'
 
 // クレデンシャル（localStorage に永続化）
-const _savedCreds = localStorage.getItem('uword_creds')
+function safeParseLocalStorage<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) as T : fallback
+  } catch {
+    return fallback
+  }
+}
+
+// _savedCreds removed: replaced by safeParseLocalStorage below
 type PlatformCreds = {
   username: string
   password: string
@@ -779,8 +854,19 @@ const creds = ref<{
   note: { username: '', password: '', cookie: '' },
   x_twitter: { username: '', password: '' },
   linkedin: { username: '', password: '' },
-  ...(_savedCreds ? JSON.parse(_savedCreds) : {}),
+  ...(safeParseLocalStorage<Record<string, unknown>>('uword_creds', {})),
 })
+
+const openCred = ref<string | null>(null)
+
+function toggleCred(platform: string) {
+  openCred.value = openCred.value === platform ? null : platform
+}
+
+function hasCredential(platform: string): boolean {
+  const c = creds.value[platform as keyof typeof creds.value]
+  return !!(c && (c as { username?: string }).username)
+}
 
 function saveCreds() {
   localStorage.setItem('uword_creds', JSON.stringify(creds.value))
@@ -1134,9 +1220,9 @@ async function runNow(platform: string) {
   try {
     const res = await fetch(`${BASE}/api/scheduler/run-now/${platform}`, { method: 'POST' })
     const d = await res.json()
-    alert(d.message)
+    showToast(d.message || '実行を開始しました', 'success')
   } catch {
-    alert('実行に失敗しました')
+    showToast('実行に失敗しました', 'error')
   }
 }
 
@@ -1583,6 +1669,7 @@ onMounted(() => {
   color: #fff;
   font-weight: 600;
   box-shadow: 0 4px 16px rgba(231, 84, 128, 0.35);
+  border-bottom: 2px solid #7c3aed;
 }
 
 .page-tab:not(.active):hover {
@@ -1907,7 +1994,7 @@ onMounted(() => {
 .textarea {
   width: 100%;
   background: rgba(255, 255, 255, 0.92);
-  border: 1.5px solid rgba(231, 84, 128, 0.15);
+  border: 1px solid #d1d5db;
   border-radius: var(--radius-input);
   color: var(--text-main);
   font-size: 14px;
@@ -1925,8 +2012,9 @@ onMounted(() => {
 
 .input:focus,
 .textarea:focus {
-  border-color: var(--accent-rose);
-  box-shadow: 0 0 0 3px rgba(231, 84, 128, 0.12);
+  outline: none;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
   background: #fff;
 }
 
@@ -3421,9 +3509,9 @@ onMounted(() => {
 }
 
 .platform-btn.active {
-  background: linear-gradient(135deg, rgba(155, 89, 182, 0.15), rgba(231, 84, 128, 0.15));
-  border-color: var(--accent-lavender);
-  color: var(--accent-lavender);
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: white;
   font-weight: 600;
 }
 
@@ -3437,6 +3525,15 @@ onMounted(() => {
   padding: 1px 5px;
   border-radius: 8px;
   font-weight: 700;
+}
+
+.gen-only-badge {
+  font-size: 9px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 3px;
+  padding: 1px 3px;
+  margin-left: 2px;
 }
 
 /* コピーボタン */
@@ -3655,4 +3752,61 @@ onMounted(() => {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* ── Credential Accordion (UX-3) ── */
+.cred-accordion {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.cred-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.85);
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  text-align: left;
+  transition: background 0.2s;
+}
+
+.cred-header:hover {
+  background: rgba(124, 58, 237, 0.05);
+}
+
+.cred-arrow {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-sub);
+}
+
+.badge-ok {
+  font-size: 11px;
+  background: #d1fae5;
+  color: #065f46;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.badge-warn {
+  font-size: 11px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.cred-body {
+  padding: 12px 14px;
+  background: #fafafa;
+  border-top: 1px solid #e5e7eb;
+}
+
 </style>
