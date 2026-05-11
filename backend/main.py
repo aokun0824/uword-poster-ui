@@ -148,7 +148,7 @@ TONE_PROMPTS = {
     },
     "feminine": {
         "label": "女性向け・親しみやすい",
-        "uword_style": "夜職女性（ホステス・キャバ嬢）向け。親しみやすく軽やか。絵文字3〜5個。「私にもできそう！」と思わせる。体験談形式。難しい言葉禁止。",
+        "uword_style": "女性読者向け。親しみやすく軽やか。絵文字3〜5個。「私にもできそう！」と思わせる。体験談形式。難しい言葉禁止。",
         "umatching_style": "女性が共感できる。日常的な言葉で。絵文字2〜3個。",
         "generic_style": "女性向け・親しみやすいトーン。絵文字適度に使用。体験談・感情に訴える表現。",
     },
@@ -385,7 +385,7 @@ async def _auto_post_job(platform: str):
     style_note = gen_config.style_note if gen_config else ""
 
     if platform == "uword":
-        prompt = f"""夜職・AIコンサル向けリアルタイム速報の投稿を作成してください。
+        prompt = f"""リアルタイム速報の投稿を作成してください。
 参考: {source.value}
 追加スタイル指示: {style_note}
 要件: タイトル20〜40文字 / 本文200〜400文字 / 覚悟層ターゲット / CTA必須 / 禁止語: 簡単・手軽・お得・初心者
@@ -733,7 +733,7 @@ async def generate_content(req: GenerateRequest):
 
     # プラットフォーム別プロンプト
     if req.platform == 'uword':
-        prompt = f"""夜職・AIコンサル向けSNS投稿を作成してください。
+        prompt = f"""SNS投稿を作成してください。
 参考情報: {source_text}
 スタイル: {platform_style}{custom_addition}
 要件: タイトル20〜40文字 / 本文150〜400文字
