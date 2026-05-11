@@ -1105,8 +1105,8 @@ const canGenerate = computed(() =>
 )
 
 // トーン設定
-const selectedTone = ref(localStorage.getItem('uword_tone') || 'professional')
-const customStyle = ref(localStorage.getItem('uword_custom_style') || '')
+const selectedTone = ref(safeParseLocalStorage<string>('uword_tone', 'professional'))
+const customStyle = ref(safeParseLocalStorage<string>('uword_custom_style', ''))
 const tones = ref<{value: string; label: string}[]>([])
 
 watch(selectedTone, (v) => localStorage.setItem('uword_tone', v))
@@ -1622,7 +1622,7 @@ onMounted(() => {
   --border-soft: rgba(231, 84, 128, 0.18);
   --border-lavender: rgba(155, 89, 182, 0.2);
   --shadow-rose: 0 4px 24px rgba(231, 84, 128, 0.1);
-  --shadow-card: 0 8px 32px rgba(155, 89, 182, 0.08), 0 2px 8px rgba(231, 84, 128, 0.06);
+  --shadow-card: 0 4px 24px rgba(124, 58, 237, 0.13), 0 1px 6px rgba(231, 84, 128, 0.10);
   --radius-card: 24px;
   --radius-btn: 50px;
   --radius-input: 14px;
@@ -1693,7 +1693,7 @@ onMounted(() => {
 .card {
   background: var(--bg-card);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(231, 84, 128, 0.12);
+  border: 1.5px solid rgba(124, 58, 237, 0.18);
   border-radius: var(--radius-card);
   padding: 24px;
   box-shadow: var(--shadow-card);

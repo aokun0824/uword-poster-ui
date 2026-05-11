@@ -381,7 +381,7 @@ JSON形式: {{"title": "", "content": "...", "hashtags": [...]}}"""
     if not row:
         return
 
-    _ldenv(AP_BACKEND / '.env')
+    load_dotenv(AP_BACKEND / '.env', override=False)
     from services.poster.encryption import decrypt_credentials
     creds = decrypt_credentials(row[0])
 
@@ -577,7 +577,6 @@ async def post_with_image(
             "post_url": cred_post_url or cred_site_url,
         }
     else:
-        from dotenv import load_dotenv
         from services.poster.encryption import decrypt_credentials
 
         db_path = AP_BACKEND / "data" / "autopost.db"
