@@ -207,6 +207,8 @@ class GenerateRequest(BaseModel):
     platform: str     # "uword" or "umatching"
     tone: str = "professional"  # トーン設定
     custom_style: str = ""      # カスタム指示
+    cta_url: str = ""
+    cta_text: str = ""
 
 
 class GenerateResponse(BaseModel):
@@ -218,6 +220,9 @@ class GenerateResponse(BaseModel):
 class DeriveRequest(BaseModel):
     note_content: str
     note_title: str = ''
+    cta_url: str = ""
+    cta_text: str = ""
+    note_url: str = ""
     platforms: list[str] = ['x_twitter', 'threads', 'instagram', 'facebook', 'linkedin', 'uword', 'umatching']
 
 
@@ -744,11 +749,67 @@ JSON形式: {{"title": "", "content": "...", "hashtags": [...]}}"""
 JSON形式: {{"title": "", "content": "...", "hashtags": [...]}}"""
 
     elif req.platform == 'note':
-        prompt = f"""Note記事を作成してください。
+        cta_addition = ""
+        cta_requirement = "自然な行動喚起を100字程度で入れる"
+        if req.cta_url or req.cta_text:
+            cta_addition = f"\nCTA指定: この内容をさらに深く、あなたのビジネスに個別最適化して実装したい方は→ {req.cta_url}"
+            cta_requirement = f"自然な行動喚起として次の文を必ず含める: 「この内容をさらに深く、あなたのビジネスに個別最適化して実装したい方は→ {req.cta_url}」"
+        prompt = f"""Note向けの有料級プレミアム記事を作成してください。
 参考情報: {source_text}
-スタイル: {platform_style}{custom_addition}
-要件: タイトル20〜50文字 / 本文800〜2000文字 / 構成（導入→本題3〜5見出し→まとめ） / Markdown記法使用可 / ハッシュタグ3〜5個
-JSON形式: {{"title": "...", "content": "...", "hashtags": [...]}}"""
+スタイル: {platform_style}{custom_addition}{cta_addition}
+
+出力条件:
+- 本文は必ず5000字以上
+- タイトルは25〜40字で、数字と読者ベネフィットを含める
+- 具体的な数字、事例、Before/After、実績を入れて信頼性を作る
+- 専門用語は使ってよいが、初出時に短く説明する
+- 「これ無料でいいの？」「スクショして保存したい」と感じる密度にする
+- Markdown記法を使い、読みやすい見出しと箇条書きを適度に入れる
+
+記事構成:
+1. 冒頭フック（200字）: 読者の痛み・欲求に刺さる「あなたにとって○○ですか？」形式
+2. 問題提起（300字）: なぜ多くの人が失敗するのか
+3. 著者の体験/実績（400字）: 具体的な数字・成果・ケースで信頼を作る
+4. 核心コンテンツ（2000字以上）: ステップバイステップの実践メソッド
+5. 読者への問いかけ（200字）: 行動につながる気づきを促す
+6. CTA（100字）: {cta_requirement}
+
+JSON形式のみで返してください:
+{{"title": "25-40字タイトル with numbers+benefit", "content": "5000字+本文", "hashtags": ["tag1","tag2","tag3"]}}"""
+
+        def _call_note_gemini() -> dict:
+            url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}'
+            body = json.dumps({
+                'contents': [{'parts': [{'text': prompt}]}],
+                'generationConfig': {
+                    'maxOutputTokens': 8192,
+                    'responseMimeType': 'application/json',
+                },
+            }).encode('utf-8')
+            request = urllib.request.Request(
+                url,
+                data=body,
+                headers={'Content-Type': 'application/json'},
+                method='POST',
+            )
+            with urllib.request.urlopen(request, timeout=60) as response:
+                resp = json.loads(response.read())
+            text = resp['candidates'][0]['content']['parts'][0]['text']
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                parsed = parsed[0] if parsed else {}
+            return parsed
+
+        try:
+            loop = asyncio.get_running_loop()
+            parsed = await loop.run_in_executor(None, _call_note_gemini)
+            return GenerateResponse(
+                title=parsed.get('title', ''),
+                content=parsed.get('content', ''),
+                hashtags=parsed.get('hashtags', [])
+            )
+        except Exception as e:
+            return GenerateResponse(title="", content=f"生成エラー: {e}", hashtags=[])
 
     elif req.platform == 'linkedin':
         prompt = f"""LinkedIn投稿を作成してください。
@@ -788,6 +849,12 @@ async def derive_from_note(req: DeriveRequest):
         'instagram': 'Instagram', 'facebook': 'Facebook',
         'linkedin': 'LinkedIn', 'uword': 'Uワード速報', 'umatching': 'ミニブログ',
     }
+    if req.note_url:
+        cta_instruction = f"\n\n各SNS投稿の末尾に「詳しくはこちら → {req.note_url}」を自然な形で含めること。"
+    elif req.cta_url:
+        cta_instruction = f"\n\n各SNS投稿の末尾に「{req.cta_text or '詳しくはこちら'} → {req.cta_url}」を自然な形で含めること。"
+    else:
+        cta_instruction = ""
 
     prompt = f'''以下のNote記事を、各SNSの文字数・トーンに最適化して派生投稿を生成してください。
 
@@ -813,7 +880,7 @@ async def derive_from_note(req: DeriveRequest):
   {{"platform": "x_twitter", "title": "", "content": "...", "hashtags": ["tag1", "tag2"]}},
   {{"platform": "threads", "title": "", "content": "...", "hashtags": []}},
   ...
-]'''
+]''' + cta_instruction
 
     try:
         import urllib.request as _urlreq

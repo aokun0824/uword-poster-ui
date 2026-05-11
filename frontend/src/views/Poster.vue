@@ -48,6 +48,37 @@
           <span class="note-first-desc">長文記事を書いて → 他SNSに一括派生</span>
         </div>
 
+        <div v-if="activePlatform === 'note'" class="note-cta-section">
+          <div class="note-cta-row">
+            <div class="note-cta-field">
+              <label class="note-cta-label">💰 販売商品・サービス名</label>
+              <input
+                v-model="noteCTAText"
+                class="note-cta-input"
+                placeholder="例: AIクローン導入支援、KOJUN AIシステム"
+              />
+            </div>
+            <div class="note-cta-field">
+              <label class="note-cta-label">🔗 誘導先URL（LINE / LP / 申込フォーム）</label>
+              <input
+                v-model="noteCTAUrl"
+                class="note-cta-input"
+                type="url"
+                placeholder="https://..."
+              />
+            </div>
+          </div>
+          <div class="note-cta-field">
+            <label class="note-cta-label">📎 公開済みNote記事URL（派生SNS用）</label>
+            <input
+              v-model="notePublishedUrl"
+              class="note-cta-input"
+              type="url"
+              placeholder="https://note.com/... （記事公開後に入力）"
+            />
+          </div>
+        </div>
+
         <!-- トレンドリサーチセクション -->
         <div class="trend-section">
           <div class="trend-header" @click="trendOpen = !trendOpen">
@@ -1058,6 +1089,9 @@ const activeTab = computed(() =>
 )
 const title = ref('')
 const content = ref('')
+const noteCTAText = ref('')
+const noteCTAUrl = ref('')
+const notePublishedUrl = ref('')
 const loading = ref(false)
 const result = ref<PostResult | null>(null)
 const imageFile = ref<File | null>(null)
@@ -1184,6 +1218,9 @@ async function deriveFromNote() {
       body: JSON.stringify({
         note_content: content.value,
         note_title: title.value,
+        cta_url: noteCTAUrl.value,
+        cta_text: noteCTAText.value,
+        note_url: notePublishedUrl.value,
         platforms: ['x_twitter', 'threads', 'instagram', 'facebook', 'linkedin', 'uword', 'umatching']
       })
     })
@@ -1488,6 +1525,8 @@ async function generateContent() {
         platform: activePlatform.value,
         tone: selectedTone.value,
         custom_style: customStyle.value,
+        cta_url: noteCTAUrl.value,
+        cta_text: noteCTAText.value,
       }),
     })
     if (!res.ok) {
@@ -3735,6 +3774,41 @@ onMounted(() => {
 }
 
 .note-first-desc { font-weight: 400; color: #3730a3; font-size: 12px; }
+
+.note-cta-section {
+  background: rgba(219,234,254,0.4);
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.note-cta-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.note-cta-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.note-cta-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.note-cta-input {
+  padding: 7px 10px;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  font-size: 12px;
+  background: white;
+}
 
 .platform-btn {
   display: flex;
