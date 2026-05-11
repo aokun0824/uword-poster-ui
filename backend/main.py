@@ -970,47 +970,68 @@ async def summarize_url_endpoint(req: SummarizeRequest):
         raise HTTPException(500, 'GEMINI_API_KEY not set')
 
     if _is_youtube_url(req.url):
-        # YouTube: Gemini の動画理解機能でダイレクト処理
-        gemini_url = (
-            f'https://generativelanguage.googleapis.com/v1beta/models/'
-            f'gemini-2.0-flash:generateContent?key={api_key}'
-        )
-        body = json.dumps({
-            'contents': [{
-                'parts': [
-                    {'file_data': {'mime_type': 'video/youtube', 'file_uri': req.url}},
-                    {'text': (
-                        '動画の内容を日本語で要約してください。\n'
-                        '・主要なテーマとキーメッセージ\n'
-                        '・視聴者が得られる価値\n'
-                        '・具体的なポイント3〜5点\n'
-                        '動画タイトル（推定）と本文要約をまとめてください。'
-                        'JSON形式: {"title": "...", "summary": "..."}'
-                    )},
-                ]
-            }],
-            'generationConfig': {'responseMimeType': 'application/json'},
-        }).encode('utf-8')
-        try:
-            request = _req_lib.Request(
-                gemini_url, data=body,
-                headers={'Content-Type': 'application/json'}, method='POST'
+        # YouTube: 動画理解(gemini-1.5-flash)→失敗時はURL文脈プロンプトにフォールバック
+        def _make_youtube_body(use_video_understanding: bool) -> bytes:
+            if use_video_understanding:
+                return json.dumps({
+                    'contents': [{
+                        'parts': [
+                            {'file_data': {'mime_type': 'video/youtube', 'file_uri': req.url}},
+                            {'text': (
+                                '動画の内容を日本語で要約してください。\n'
+                                '・主要なテーマとキーメッセージ\n'
+                                '・視聴者が得られる価値\n'
+                                '・具体的なポイント3〜5点\n'
+                                'JSON形式: {"title": "タイトル", "summary": "要約本文"}'
+                            )},
+                        ]
+                    }],
+                    'generationConfig': {'responseMimeType': 'application/json'},
+                }).encode('utf-8')
+            else:
+                return json.dumps({
+                    'contents': [{
+                        'parts': [{'text': (
+                            f'YouTube動画URL: {req.url}\n\n'
+                            'このURLの動画をSNS投稿のネタ元として活用します。\n'
+                            'URLから推測できるトピックや一般的な知識を基に、\n'
+                            '投稿コンテンツを作成するための要約を日本語で生成してください。\n'
+                            'JSON形式: {"title": "推定タイトル", "summary": "トピック要約（200〜400字）"}'
+                        )}]
+                    }],
+                    'generationConfig': {'responseMimeType': 'application/json'},
+                }).encode('utf-8')
+
+        for model, use_video in [
+            ('gemini-1.5-flash', True),
+            ('gemini-2.0-flash', False),
+        ]:
+            gemini_url = (
+                f'https://generativelanguage.googleapis.com/v1beta/models/'
+                f'{model}:generateContent?key={api_key}'
             )
-            with _req_lib.urlopen(request, timeout=60) as r:
-                resp = json.loads(r.read())
-            text = resp['candidates'][0]['content']['parts'][0]['text']
-            parsed = json.loads(text)
-            if isinstance(parsed, list):
-                parsed = parsed[0] if parsed else {}
-            return SummarizeResponse(
-                title=parsed.get('title', 'YouTube動画'),
-                summary=parsed.get('summary', text),
-                source_type='youtube',
-            )
-        except Exception as e:
-            _logger.warning("YouTube summarize failed: %s", e)
-            from fastapi import HTTPException
-            raise HTTPException(500, f'YouTube要約失敗: {e}')
+            try:
+                body = _make_youtube_body(use_video)
+                request = _req_lib.Request(
+                    gemini_url, data=body,
+                    headers={'Content-Type': 'application/json'}, method='POST'
+                )
+                with _req_lib.urlopen(request, timeout=60) as r:
+                    resp = json.loads(r.read())
+                text = resp['candidates'][0]['content']['parts'][0]['text']
+                parsed = json.loads(text)
+                if isinstance(parsed, list):
+                    parsed = parsed[0] if parsed else {}
+                return SummarizeResponse(
+                    title=parsed.get('title', 'YouTube動画'),
+                    summary=parsed.get('summary', text),
+                    source_type='youtube',
+                )
+            except Exception as e:
+                _logger.warning("YouTube summarize (%s) failed: %s", model, e)
+                continue
+        from fastapi import HTTPException
+        raise HTTPException(500, 'YouTube要約に失敗しました。URLを確認してください。')
 
     else:
         # 記事: HTML取得 → テキスト抽出 → Gemini で要約
