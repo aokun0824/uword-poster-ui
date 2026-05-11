@@ -43,6 +43,70 @@
           </button>
         </div>
 
+        <!-- トレンドリサーチセクション -->
+        <div class="trend-section">
+          <div class="trend-header" @click="trendOpen = !trendOpen">
+            <span>📈 トレンドリサーチ</span>
+            <span class="trend-badge">バズる話題を探す</span>
+            <span>{{ trendOpen ? '▲' : '▼' }}</span>
+          </div>
+
+          <div v-show="trendOpen" class="trend-body">
+            <!-- キーワード検索 -->
+            <div class="trend-search-row">
+              <input
+                v-model="trendQuery"
+                placeholder="キーワードで記事を検索（例: AI 副業、節約術）"
+                @keydown.enter="searchArticles"
+                class="trend-input"
+              />
+              <button @click="searchArticles" :disabled="searchingArticles" class="btn-trend-search">
+                {{ searchingArticles ? '検索中...' : '🔍 検索' }}
+              </button>
+            </div>
+
+            <!-- Google Trends / Yahoo News ボタン -->
+            <button @click="fetchTrending" :disabled="loadingTrend" class="btn-fetch-trend">
+              {{ loadingTrend ? '取得中...' : '🔥 今バズっているトピックを取得' }}
+            </button>
+
+            <!-- トレンドカード一覧 -->
+            <div v-if="trendItems.length" class="trend-list">
+              <div
+                v-for="item in trendItems"
+                :key="item.title"
+                class="trend-card"
+                @click="useTrendItem(item)"
+              >
+                <div class="trend-card-source">
+                  {{ item.source === 'google_trends' ? '🔥 Google Trends' : '📰 Yahoo ニュース' }}
+                </div>
+                <div class="trend-card-title">{{ item.title }}</div>
+                <div class="trend-card-summary">{{ item.summary }}</div>
+                <button class="btn-use-trend">このネタで投稿生成 →</button>
+              </div>
+            </div>
+
+            <!-- 記事検索結果 -->
+            <div v-if="articleResults.length" class="article-list">
+              <h4>🔎 検索結果</h4>
+              <div
+                v-for="art in articleResults"
+                :key="art.title"
+                class="article-card"
+                :class="`virality-${art.estimated_virality}`"
+              >
+                <div class="article-virality">
+                  {{ art.estimated_virality === 'high' ? '🔥 バズ高' : art.estimated_virality === 'medium' ? '📊 中' : '📉 低' }}
+                </div>
+                <div class="article-title">{{ art.title }}</div>
+                <div class="article-topic">💡 {{ art.topic }}</div>
+                <button class="btn-use-article" @click.stop="useArticle(art)">このネタで生成 →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- AI コンテンツ生成 -->
         <div class="generate-section" v-show="pageTab === 'post'">
           <h3 class="generate-title">AI コンテンツ生成</h3>
@@ -751,6 +815,64 @@
 import { ref, computed, onMounted, watch } from 'vue'
 
 const BASE = import.meta.env.VITE_API_BASE || ''
+
+// ──────────────────────────────────────────────────────────
+// トレンドリサーチ
+// ──────────────────────────────────────────────────────────
+const trendOpen = ref(false)
+const trendQuery = ref('')
+const trendItems = ref<any[]>([])
+const articleResults = ref<any[]>([])
+const loadingTrend = ref(false)
+const searchingArticles = ref(false)
+
+async function fetchTrending() {
+  loadingTrend.value = true
+  try {
+    const res = await fetch(`${BASE}/api/trending`)
+    const data = await res.json()
+    trendItems.value = data.items || []
+    if (!trendItems.value.length) showToast('トレンド取得結果が0件でした', 'info')
+  } catch {
+    showToast('トレンド取得に失敗しました', 'error')
+  } finally {
+    loadingTrend.value = false
+  }
+}
+
+async function searchArticles() {
+  if (!trendQuery.value.trim()) return
+  searchingArticles.value = true
+  articleResults.value = []
+  try {
+    const res = await fetch(`${BASE}/api/search-articles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: trendQuery.value, platform: activePlatform.value })
+    })
+    const data = await res.json()
+    articleResults.value = data.articles || []
+    if (!articleResults.value.length) showToast('記事が見つかりませんでした', 'info')
+  } catch {
+    showToast('記事検索に失敗しました', 'error')
+  } finally {
+    searchingArticles.value = false
+  }
+}
+
+function useTrendItem(item: any) {
+  sourceType.value = 'topic'
+  generateSource.value = item.title
+  showToast(`「${item.title}」をネタにして生成します`, 'info')
+  generateContent()
+}
+
+function useArticle(art: any) {
+  sourceType.value = 'topic'
+  generateSource.value = `${art.title}。${art.topic}`
+  showToast('記事ネタで生成します', 'info')
+  generateContent()
+}
 
 interface PostResult {
   success: boolean
@@ -3809,4 +3931,82 @@ onMounted(() => {
   border-top: 1px solid #e5e7eb;
 }
 
+
+/* ──────────────────────────────────────────────────────────
+   トレンドリサーチ
+   ────────────────────────────────────────────────────────── */
+.trend-section {
+  background: linear-gradient(135deg, rgba(255,237,213,0.6), rgba(254,240,255,0.6));
+  border: 1px solid rgba(251,146,60,0.25);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.trend-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  color: #92400e;
+}
+.trend-badge {
+  font-size: 10px;
+  background: #fbbf24;
+  color: #78350f;
+  border-radius: 10px;
+  padding: 2px 8px;
+  margin-left: auto;
+}
+.trend-body { padding: 0 16px 16px; }
+.trend-search-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.trend-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.btn-fetch-trend, .btn-trend-search {
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #f97316, #ec4899);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+.btn-fetch-trend { width: 100%; margin-bottom: 12px; }
+.trend-list, .article-list { display: flex; flex-direction: column; gap: 8px; }
+.trend-card, .article-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+}
+.trend-card:hover, .article-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.trend-card-source { font-size: 10px; color: #6b7280; margin-bottom: 4px; }
+.trend-card-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+.trend-card-summary { font-size: 12px; color: #6b7280; margin-bottom: 8px; }
+.article-virality { font-size: 11px; margin-bottom: 4px; }
+.article-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+.article-topic { font-size: 12px; color: #7c3aed; margin-bottom: 8px; }
+.btn-use-trend, .btn-use-article {
+  font-size: 12px;
+  padding: 4px 10px;
+  background: #7c3aed;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.virality-high { border-left: 3px solid #ef4444; }
+.virality-medium { border-left: 3px solid #f59e0b; }
+.virality-low { border-left: 3px solid #9ca3af; }
+.article-list h4 { font-size: 13px; font-weight: 600; margin: 8px 0 6px; color: #374151; }
 </style>

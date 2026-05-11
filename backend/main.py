@@ -1539,3 +1539,78 @@ async def get_logs_detail(limit: int = Query(default=50, le=500)):
         }
         for r in rows
     ]
+
+
+# ──────────────────────────────────────────────────────────
+# トレンドリサーチエンドポイント
+# ──────────────────────────────────────────────────────────
+
+@app.get("/api/trending")
+async def get_trending():
+    """Google Trends JP + Yahoo Japan ニュース RSS からトレンド取得"""
+    import asyncio
+    import feedparser
+    import datetime as _dt
+
+    feeds = [
+        ("google_trends", "https://trends.google.co.jp/trending/rss?geo=JP"),
+        ("yahoo_news",    "https://news.yahoo.co.jp/rss/topics/top-picks.xml"),
+    ]
+
+    results = []
+    for source, url in feeds:
+        try:
+            loop = asyncio.get_event_loop()
+            feed = await loop.run_in_executor(None, feedparser.parse, url)
+            for entry in feed.entries[:8]:
+                results.append({
+                    "source": source,
+                    "title": entry.get("title", ""),
+                    "link":  entry.get("link", ""),
+                    "published": entry.get("published", ""),
+                    "summary": entry.get("summary", "")[:200],
+                })
+        except Exception as e:
+            _logger.warning("Trending feed error %s: %s", source, e)
+
+    return {"items": results, "fetched_at": _dt.datetime.now().isoformat()}
+
+
+class ArticleSearchRequest(BaseModel):
+    query: str
+    platform: str = "uword"
+
+class ArticleSearchResponse(BaseModel):
+    articles: list[dict]
+
+@app.post("/api/search-articles", response_model=ArticleSearchResponse)
+async def search_articles(req: ArticleSearchRequest):
+    """Gemini を使って最新記事・トレンドを検索してリスト返却"""
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return ArticleSearchResponse(articles=[])
+
+    prompt = f"""以下のキーワードに関連する、最近（2024年以降）の日本語記事・ニュース・トレンドを5件教えてください。
+キーワード: {req.query}
+
+各記事について以下のJSON形式で返してください:
+[
+  {{
+    "title": "記事タイトル",
+    "summary": "100文字以内の要約",
+    "topic": "投稿ネタとして使えるポイント",
+    "estimated_virality": "high/medium/low"
+  }}
+]
+JSON配列のみを返してください。"""
+
+    try:
+        result = await _call_gemini(prompt)
+        content = result.get("content", "[]")
+        import re as _re2
+        m = _re2.search(r'\[.*\]', content, _re2.DOTALL)
+        articles = json.loads(m.group()) if m else []
+        return ArticleSearchResponse(articles=articles)
+    except Exception as e:
+        _logger.warning("search_articles error: %s", e)
+        return ArticleSearchResponse(articles=[])
