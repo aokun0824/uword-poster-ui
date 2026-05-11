@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# DB files (contain scheduler state)
+*.db
+
+# Env files (contain URLs / secrets)
+.env
+.env.production
+.env.local
+
+# Backups
+backups/
+
+# OS
+.DS_Store

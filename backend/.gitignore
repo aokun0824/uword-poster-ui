@@ -1,0 +1,14 @@
+# 環境・設定
+.env
+*.db
+
+# バックアップ
+../backups/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 一時ファイル
+/tmp/uword_diag_*

@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"node \\\"/Users/jungosakamoto/.claude/plugins/cache/openai-codex/codex/1.0.4/scripts/codex-companion.mjs\\\" task --model gpt-4o --write \\\"$(cat <<'PROMPT'\\n<task>\\nDesign a detailed technical...",
+  "error": "Exit code 1\n[codex] Starting Codex task thread.\n[codex] Thread ready (019e0569-f57a-7de2-8183-3b1b33fa75b5).\n[codex] Turn started (019e0569-f806-7481-81f7-e04ebbba91fa).\n[codex] Codex error: {\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-4o' model is not supported when using Codex with a ChatGPT account.\"}}\n[codex] Turn failed.\n{\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-4o' model is not supported when using C...",
+  "timestamp": "2026-05-08T02:28:21.157Z",
+  "retry_count": 1
+}

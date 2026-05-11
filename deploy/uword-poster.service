@@ -1,0 +1,17 @@
+[Unit]
+Description=U-Word 投稿管理ツール Backend
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/uword-poster-ui/backend
+EnvironmentFile=/root/uword-poster-ui/backend/.env
+ExecStart=/root/uword-poster-ui/backend/venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 5201 --workers 1
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

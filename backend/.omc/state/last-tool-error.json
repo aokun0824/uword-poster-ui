@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd /Users/jungosakamoto/Claude/dev/products/uword-poster-ui/frontend && node -e \\\"\\nconst { chromium } = require('playwright');\\n(async () => {\\n  const browser = await chromium.launch({ h...",
+  "error": "Exit code 1\nnode:internal/modules/cjs/loader:1386\n  throw err;\n  ^\n\nError: Cannot find module 'playwright'\nRequire stack:\n- /Users/jungosakamoto/Claude/dev/products/uword-poster-ui/frontend/[eval]\n    at Function._resolveFilename (node:internal/modules/cjs/loader:1383:15)\n    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)\n    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)\n    at Function._load (node:internal/modules/cjs/loader:1192:37)\n    at TracingChanne...",
+  "timestamp": "2026-05-08T17:07:53.572Z",
+  "retry_count": 1
+}
