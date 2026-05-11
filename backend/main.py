@@ -7,6 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.triggers.cron import CronTrigger
 from typing import Literal, Optional
+import asyncio
 import sys
 import json
 import shutil
@@ -212,6 +213,23 @@ class GenerateResponse(BaseModel):
     title: str = ""
     content: str
     hashtags: list[str] = []
+
+
+class DeriveRequest(BaseModel):
+    note_content: str
+    note_title: str = ''
+    platforms: list[str] = ['x_twitter', 'threads', 'instagram', 'facebook', 'linkedin', 'uword', 'umatching']
+
+
+class DeriveResult(BaseModel):
+    platform: str
+    title: str = ''
+    content: str
+    hashtags: list[str] = []
+
+
+class DeriveResponse(BaseModel):
+    results: list[DeriveResult]
 
 
 class SummarizeRequest(BaseModel):
@@ -753,6 +771,74 @@ JSON形式: {{"title": "", "content": "...", "hashtags": [...]}}"""
         content=parsed.get('content', ''),
         hashtags=parsed.get('hashtags', [])
     )
+
+
+@app.post('/api/derive-from-note', response_model=DeriveResponse)
+async def derive_from_note(req: DeriveRequest):
+    api_key = os.environ.get('GEMINI_API_KEY', '')
+    if not api_key:
+        return DeriveResponse(results=[])
+
+    PLATFORM_LIMITS = {
+        'x_twitter': 280, 'threads': 500, 'instagram': 2200,
+        'facebook': 2000, 'linkedin': 3000, 'uword': 400, 'umatching': 300,
+    }
+    PLATFORM_NAMES = {
+        'x_twitter': 'X(Twitter)', 'threads': 'Threads',
+        'instagram': 'Instagram', 'facebook': 'Facebook',
+        'linkedin': 'LinkedIn', 'uword': 'Uワード速報', 'umatching': 'ミニブログ',
+    }
+
+    prompt = f'''以下のNote記事を、各SNSの文字数・トーンに最適化して派生投稿を生成してください。
+
+=== Note元記事 ===
+タイトル: {req.note_title or '（なし）'}
+{req.note_content[:3000]}
+=== ここまで ===
+
+以下の各プラットフォーム用に最適化した投稿をJSON配列で返してください:
+{json.dumps([{"platform": p, "char_limit": PLATFORM_LIMITS.get(p, 500), "name": PLATFORM_NAMES.get(p, p)} for p in req.platforms], ensure_ascii=False)}
+
+各プラットフォームの要件:
+- x_twitter: 280字以内、インパクト重視、ハッシュタグ2〜3個
+- threads: 500字以内、会話的でカジュアル
+- instagram: キャプション形式、絵文字あり、ハッシュタグ5〜10個
+- facebook: 2000字以内、読みやすく共感を誘う
+- linkedin: ビジネス向け、学びや洞察を強調、3000字以内
+- uword: 400字以内、個人事業主・経営者向け硬派トーン
+- umatching: 300字以内、女性向けフレンドリー
+
+出力フォーマット（JSONのみ）:
+[
+  {{"platform": "x_twitter", "title": "", "content": "...", "hashtags": ["tag1", "tag2"]}},
+  {{"platform": "threads", "title": "", "content": "...", "hashtags": []}},
+  ...
+]'''
+
+    try:
+        import urllib.request as _urlreq
+        url = (f'https://generativelanguage.googleapis.com/v1beta/models/'
+               f'gemini-2.0-flash:generateContent?key={api_key}')
+        body = json.dumps({
+            'contents': [{'parts': [{'text': prompt}]}],
+            'generationConfig': {'responseMimeType': 'application/json'}
+        }).encode('utf-8')
+        http_req = _urlreq.Request(url, data=body,
+                                   headers={'Content-Type': 'application/json'}, method='POST')
+        loop = asyncio.get_event_loop()
+        def _fetch():
+            with _urlreq.urlopen(http_req, timeout=60) as r:
+                return json.loads(r.read())
+        resp = await loop.run_in_executor(None, _fetch)
+        text = resp['candidates'][0]['content']['parts'][0]['text']
+        items = json.loads(text)
+        if not isinstance(items, list):
+            items = []
+        results = [DeriveResult(**item) for item in items if isinstance(item, dict)]
+        return DeriveResponse(results=results)
+    except Exception as e:
+        _logger.warning('derive_from_note error: %s', e)
+        return DeriveResponse(results=[])
 
 
 @app.get("/api/tones")

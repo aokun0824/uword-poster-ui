@@ -43,6 +43,11 @@
           </button>
         </div>
 
+        <div v-if="activePlatform === 'note'" class="note-first-banner">
+          <span>📖 Note-first モード</span>
+          <span class="note-first-desc">長文記事を書いて → 他SNSに一括派生</span>
+        </div>
+
         <!-- トレンドリサーチセクション -->
         <div class="trend-section">
           <div class="trend-header" @click="trendOpen = !trendOpen">
@@ -203,6 +208,7 @@
           <textarea
             v-model="content"
             class="textarea"
+            :class="{ 'note-mode': activePlatform === 'note' }"
             rows="10"
             placeholder="本文を入力してください..."
           ></textarea>
@@ -210,6 +216,27 @@
           <div class="char-counter" :class="{ 'over-limit': isOverLimit }">
             {{ content.length }} / {{ charLimit }}文字
             <span v-if="isOverLimit" class="over-msg"> ⚠️ 制限超過</span>
+          </div>
+        </div>
+
+        <div v-if="activePlatform === 'note' && content.trim().length > 100" class="derive-section">
+          <button @click="deriveFromNote" :disabled="derivingContent" class="btn-derive">
+            {{ derivingContent ? '派生生成中...' : '🚀 他SNS用コンテンツを一括生成' }}
+          </button>
+          <div v-if="deriveResults.length" class="derive-results">
+            <h4>📋 派生コンテンツ（クリックでコピー・使用）</h4>
+            <div v-for="r in deriveResults" :key="r.platform" class="derive-card">
+              <div class="derive-card-header">
+                <span class="derive-platform">{{ platformIcon(r.platform) }} {{ platformName(r.platform) }}</span>
+                <span class="derive-char-count">{{ r.content.length }}字</span>
+                <button class="btn-use-derive" @click="useDerivedContent(r)">この内容を使う</button>
+                <button class="btn-copy-derive" @click="copyToClipboard(r.content)">📋 コピー</button>
+              </div>
+              <div class="derive-content-preview">{{ r.content }}</div>
+              <div v-if="r.hashtags?.length" class="derive-hashtags">
+                <span v-for="tag in r.hashtags" :key="tag" class="hashtag-chip">#{{ tag }}</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -233,7 +260,7 @@
         </div>
 
         <!-- AI 画像生成 -->
-        <div v-if="['instagram','facebook'].includes(activePlatform)" class="image-gen-section">
+        <div v-if="['instagram','facebook','note','linkedin'].includes(activePlatform)" class="image-gen-section">
           <div class="image-gen-header" @click="showImageGen = !showImageGen">
             <span class="image-gen-title">🎨 AI 画像生成 <span class="powered-by">powered by Gemini</span></span>
             <span class="image-gen-toggle">{{ showImageGen ? '▲' : '▼' }}</span>
@@ -1036,6 +1063,8 @@ const result = ref<PostResult | null>(null)
 const imageFile = ref<File | null>(null)
 const repairing = ref(false)
 const repairLogs = ref<string[]>([])
+const deriveResults = ref<any[]>([])
+const derivingContent = ref(false)
 
 // プラットフォーム一覧
 const allPlatforms = ref<{value: string; name: string; icon: string; char_limit: number; has_poster: boolean; has_title: boolean}[]>([])
@@ -1143,6 +1172,66 @@ async function copyContentToClipboard() {
   } catch {
     showToast('コピーに失敗しました', 'error')
   }
+}
+
+async function deriveFromNote() {
+  derivingContent.value = true
+  deriveResults.value = []
+  try {
+    const res = await fetch(`${BASE}/api/derive-from-note`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        note_content: content.value,
+        note_title: title.value,
+        platforms: ['x_twitter', 'threads', 'instagram', 'facebook', 'linkedin', 'uword', 'umatching']
+      })
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    deriveResults.value = data.results || []
+    if (!deriveResults.value.length) showToast('派生生成に失敗しました', 'error')
+    else showToast(`${deriveResults.value.length}件のSNS投稿を生成しました！`, 'success')
+  } catch {
+    showToast('派生生成に失敗しました', 'error')
+  } finally {
+    derivingContent.value = false
+  }
+}
+
+function useDerivedContent(r: any) {
+  activePlatform.value = r.platform
+  content.value = r.content
+  title.value = r.title || ''
+  if (r.hashtags?.length) {
+    hashtagList.value = r.hashtags.map((h: string) => h.trim().replace(/^#/, '')).filter(Boolean)
+  }
+  showToast(`${platformName(r.platform)}用コンテンツをセットしました`, 'success')
+}
+
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    showToast('コピーしました', 'success')
+  } catch {
+    showToast('コピーに失敗しました', 'error')
+  }
+}
+
+function platformIcon(platform: string): string {
+  const icons: Record<string, string> = {
+    x_twitter: '✖️', threads: '🧵', instagram: '📸',
+    facebook: '🔵', linkedin: '💼', uword: '📰', umatching: '📝'
+  }
+  return icons[platform] || '📄'
+}
+
+function platformName(platform: string): string {
+  const names: Record<string, string> = {
+    x_twitter: 'X (Twitter)', threads: 'Threads', instagram: 'Instagram',
+    facebook: 'Facebook', linkedin: 'LinkedIn', uword: 'リアルタイム速報', umatching: 'ミニブログ'
+  }
+  return names[platform] || platform
 }
 
 // 文字数制限 computed
@@ -2145,6 +2234,11 @@ onMounted(() => {
   min-height: 200px;
 }
 
+.form-textarea.note-mode,
+.textarea.note-mode {
+  min-height: 320px;
+}
+
 /* 文字数カウンタ */
 .char-counter {
   text-align: right;
@@ -2161,6 +2255,30 @@ onMounted(() => {
 .over-msg {
   margin-left: 4px;
 }
+
+.derive-section { margin: 12px 0; }
+
+.btn-derive {
+  width: 100%; padding: 12px;
+  background: linear-gradient(135deg, #3b82f6, #7c3aed);
+  color: white; border: none; border-radius: 10px;
+  font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity 0.2s;
+}
+
+.btn-derive:hover { opacity: 0.9; }
+.btn-derive:disabled { opacity: 0.5; cursor: not-allowed; }
+.derive-results { margin-top: 14px; }
+.derive-results h4 { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #374151; }
+.derive-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin-bottom: 8px; background: white; }
+.derive-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.derive-platform { font-weight: 600; font-size: 13px; flex: 1; }
+.derive-char-count { font-size: 11px; color: #9ca3af; }
+.btn-use-derive, .btn-copy-derive { padding: 4px 10px; font-size: 11px; border-radius: 6px; cursor: pointer; border: 1px solid #d1d5db; }
+.btn-use-derive { background: #7c3aed; color: white; border-color: #7c3aed; }
+.btn-copy-derive { background: white; color: #374151; }
+.derive-content-preview { font-size: 12px; color: #4b5563; line-height: 1.6; max-height: 80px; overflow: hidden; white-space: pre-wrap; }
+.derive-hashtags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.hashtag-chip { font-size: 11px; background: #ede9fe; color: #6d28d9; border-radius: 10px; padding: 2px 8px; }
 
 /* ============================================================ */
 /* ハッシュタグ チップ式UI */
@@ -3608,6 +3726,15 @@ onMounted(() => {
   gap: 6px;
   margin-bottom: 16px;
 }
+
+.note-first-banner {
+  display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+  background: linear-gradient(135deg, #dbeafe, #ede9fe);
+  border: 1px solid #93c5fd; border-radius: 8px; margin-bottom: 12px;
+  font-size: 13px; font-weight: 600; color: #1e40af;
+}
+
+.note-first-desc { font-weight: 400; color: #3730a3; font-size: 12px; }
 
 .platform-btn {
   display: flex;
