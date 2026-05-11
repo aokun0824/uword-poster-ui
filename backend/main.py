@@ -209,6 +209,10 @@ class GenerateRequest(BaseModel):
     custom_style: str = ""      # カスタム指示
     cta_url: str = ""
     cta_text: str = ""
+    business_name: str = ""
+    business_type: str = ""
+    target_audience: str = ""
+    value_proposition: str = ""
 
 
 class GenerateResponse(BaseModel):
@@ -224,6 +228,10 @@ class DeriveRequest(BaseModel):
     cta_text: str = ""
     note_url: str = ""
     platforms: list[str] = ['x_twitter', 'threads', 'instagram', 'facebook', 'linkedin', 'uword', 'umatching']
+    business_name: str = ""
+    business_type: str = ""
+    target_audience: str = ""
+    value_proposition: str = ""
 
 
 class DeriveResult(BaseModel):
@@ -711,6 +719,17 @@ async def generate_content(req: GenerateRequest):
     else:
         platform_style = tone_config.get("generic_style", tone_config["uword_style"])
     custom_addition = f"\n追加スタイル指示: {req.custom_style}" if req.custom_style else ""
+    profile_context = ""
+    if req.business_name or req.business_type:
+        profile_context = f"""
+【投稿者の事業情報】
+事業名: {req.business_name or '未設定'}
+業種: {req.business_type or '未設定'}
+ターゲット顧客: {req.target_audience or '未設定'}
+強み・差別化: {req.value_proposition or '未設定'}
+
+この事業情報を踏まえ、この事業のオーナーが書く投稿として最適化してください。
+"""
 
     # プラットフォーム別プロンプト
     if req.platform == 'uword':
@@ -754,7 +773,7 @@ JSON形式: {{"title": "", "content": "...", "hashtags": [...]}}"""
         if req.cta_url or req.cta_text:
             cta_addition = f"\nCTA指定: この内容をさらに深く、あなたのビジネスに個別最適化して実装したい方は→ {req.cta_url}"
             cta_requirement = f"自然な行動喚起として次の文を必ず含める: 「この内容をさらに深く、あなたのビジネスに個別最適化して実装したい方は→ {req.cta_url}」"
-        prompt = f"""Note向けの有料級プレミアム記事を作成してください。
+        prompt = f"""{profile_context}Note向けの有料級プレミアム記事を作成してください。
 参考情報: {source_text}
 スタイル: {platform_style}{custom_addition}{cta_addition}
 
@@ -825,6 +844,7 @@ JSON形式: {{"title": "", "content": "...", "hashtags": [...]}}"""
 要件: 本文150〜400文字 / ハッシュタグ3〜5個
 JSON形式: {{"title": "", "content": "...", "hashtags": [...]}}"""
 
+    prompt = f"{profile_context}{prompt}"
     parsed = await _call_gemini(prompt)
 
     return GenerateResponse(
@@ -855,8 +875,19 @@ async def derive_from_note(req: DeriveRequest):
         cta_instruction = f"\n\n各SNS投稿の末尾に「{req.cta_text or '詳しくはこちら'} → {req.cta_url}」を自然な形で含めること。"
     else:
         cta_instruction = ""
+    profile_context = ""
+    if req.business_name or req.business_type:
+        profile_context = f"""
+【投稿者の事業情報】
+事業名: {req.business_name or '未設定'}
+業種: {req.business_type or '未設定'}
+ターゲット顧客: {req.target_audience or '未設定'}
+強み・差別化: {req.value_proposition or '未設定'}
 
-    prompt = f'''以下のNote記事を、各SNSの文字数・トーンに最適化して派生投稿を生成してください。
+この事業情報を踏まえ、この事業のオーナーが書く投稿として最適化してください。
+"""
+
+    prompt = f'''{profile_context}以下のNote記事を、各SNSの文字数・トーンに最適化して派生投稿を生成してください。
 
 === Note元記事 ===
 タイトル: {req.note_title or '（なし）'}

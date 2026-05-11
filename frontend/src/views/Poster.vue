@@ -6,6 +6,51 @@
         {{ toastMsg }}
       </div>
     </transition>
+    <div v-if="showOnboarding" class="onboarding-overlay">
+      <div class="onboarding-modal">
+        <div class="onboarding-step" v-if="onboardingStep === 1">
+          <div class="onboarding-icon">🎉</div>
+          <h2>U-Word 投稿管理へようこそ！</h2>
+          <p>AIがあなたのビジネスに合わせた投稿を自動生成します。<br>まず事業情報を教えてください（後から変更可）</p>
+          <button @click="onboardingStep = 2" class="btn-onboarding-next">はじめる →</button>
+          <button @click="skipOnboarding" class="btn-onboarding-skip">スキップ</button>
+        </div>
+        <div class="onboarding-step" v-if="onboardingStep === 2">
+          <h2>📋 あなたの事業を教えてください</h2>
+          <div class="onboarding-fields">
+            <div class="onboarding-field">
+              <label>事業名・屋号 <span class="required">*</span></label>
+              <input v-model="bizProfile.name" placeholder="例: 田中フラワーショップ" autofocus />
+            </div>
+            <div class="onboarding-field">
+              <label>業種 <span class="required">*</span></label>
+              <input v-model="bizProfile.type" placeholder="例: 花屋、ヨガ教室、ITコンサル" />
+            </div>
+            <div class="onboarding-field">
+              <label>ターゲット顧客</label>
+              <input v-model="bizProfile.target" placeholder="例: 30〜50代女性、地域の中小企業" />
+            </div>
+            <div class="onboarding-field">
+              <label>強み・差別化</label>
+              <input v-model="bizProfile.value" placeholder="例: 創業30年、オンライン完結" />
+            </div>
+          </div>
+          <button @click="onboardingStep = 3" :disabled="!bizProfile.name || !bizProfile.type" class="btn-onboarding-next">次へ →</button>
+        </div>
+        <div class="onboarding-step" v-if="onboardingStep === 3">
+          <h2>🔑 U-Wordアカウントを設定</h2>
+          <p>設定タブ → 🔑 ログイン情報 で各SNSのアカウントを入力してください</p>
+          <div class="onboarding-quick-fields">
+            <label>U-Word メールアドレス</label>
+            <input v-model="quickUwordEmail" type="email" placeholder="your@email.com" />
+            <label>U-Word パスワード</label>
+            <input v-model="quickUwordPassword" type="password" placeholder="パスワード" />
+          </div>
+          <button @click="completeOnboarding" class="btn-onboarding-next">完了 ✅</button>
+          <button @click="skipOnboarding" class="btn-onboarding-skip">後で設定する</button>
+        </div>
+      </div>
+    </div>
     <!-- Top-level page tabs -->
     <div class="page-tabs">
       <button
@@ -41,6 +86,10 @@
             <span v-if="p.has_poster" class="plat-poster-badge">投稿</span>
             <span v-if="!p.has_poster" class="gen-only-badge">生成のみ</span>
           </button>
+        </div>
+        <div v-if="!bizProfile.name" class="profile-hint" @click="pageTab = 'settings'">
+          ⚠️ 事業プロフィールを設定するとAI生成の精度が上がります →
+          <span class="profile-hint-link">設定タブで入力する</span>
         </div>
 
         <div v-if="activePlatform === 'note'" class="note-first-banner">
@@ -720,6 +769,36 @@
     <!-- ============================================================ -->
     <div v-if="pageTab === 'settings'" class="settings-tab">
       <section class="settings-section">
+        <!-- 事業プロフィール -->
+        <div class="biz-profile-section">
+          <h3>🏢 あなたの事業プロフィール</h3>
+          <p class="biz-profile-desc">AIがあなたの事業に合わせた投稿を生成するために使います</p>
+          <div class="biz-profile-grid">
+            <div class="biz-field">
+              <label>事業名・屋号</label>
+              <input v-model="bizProfile.name" placeholder="例: 田中フラワーショップ、AI活用コンサル田中" />
+            </div>
+            <div class="biz-field">
+              <label>業種</label>
+              <input v-model="bizProfile.type" placeholder="例: 花屋、ヨガ教室、Web制作、飲食店" />
+            </div>
+            <div class="biz-field">
+              <label>ターゲット顧客</label>
+              <input v-model="bizProfile.target" placeholder="例: 30〜50代女性、中小企業経営者、育児中の主婦" />
+            </div>
+            <div class="biz-field">
+              <label>強み・差別化ポイント</label>
+              <input v-model="bizProfile.value" placeholder="例: 創業30年、オンライン完結、地元食材のみ使用" />
+            </div>
+            <div class="biz-field biz-field-full">
+              <label>自己紹介・ひとこと（AIの文体参考に）</label>
+              <textarea v-model="bizProfile.bio" rows="3"
+                placeholder="例: 地元で20年、花を通じて暮らしに彩りを届けています。季節の花をリーズナブルに提供するのが自慢です。"></textarea>
+            </div>
+          </div>
+          <button @click="saveBizProfile" class="btn-save-biz">💾 プロフィールを保存</button>
+          <span v-if="bizSaved" class="biz-saved-msg">✅ 保存しました</span>
+        </div>
         <h3>🔑 ログイン情報（アカウント設定）</h3>
         <div class="creds-form">
           <!-- uword -->
@@ -1001,10 +1080,61 @@ type PageTab = 'post' | 'auto' | 'review' | 'diagnose' | 'logs' | 'settings'
 function safeParseLocalStorage<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) as T : fallback
+    if (!raw) return fallback
+    if (typeof fallback === 'string') return raw as T
+    return JSON.parse(raw) as T
   } catch {
     return fallback
   }
+}
+
+const bizProfile = ref({
+  name: safeParseLocalStorage<string>('biz_name', ''),
+  type: safeParseLocalStorage<string>('biz_type', ''),
+  target: safeParseLocalStorage<string>('biz_target', ''),
+  value: safeParseLocalStorage<string>('biz_value', ''),
+  bio: safeParseLocalStorage<string>('biz_bio', ''),
+})
+const bizSaved = ref(false)
+const showOnboarding = ref(!localStorage.getItem('onboarding_done'))
+const onboardingStep = ref(1)
+const quickUwordEmail = ref('')
+const quickUwordPassword = ref('')
+
+function saveBizProfile() {
+  localStorage.setItem('biz_name', bizProfile.value.name)
+  localStorage.setItem('biz_type', bizProfile.value.type)
+  localStorage.setItem('biz_target', bizProfile.value.target)
+  localStorage.setItem('biz_value', bizProfile.value.value)
+  localStorage.setItem('biz_bio', bizProfile.value.bio)
+  bizSaved.value = true
+  setTimeout(() => { bizSaved.value = false }, 2000)
+  showToast('事業プロフィールを保存しました', 'success')
+}
+
+function skipOnboarding() {
+  localStorage.setItem('onboarding_done', '1')
+  showOnboarding.value = false
+}
+
+function completeOnboarding() {
+  saveBizProfile()
+  if (quickUwordEmail.value) {
+    const existing = safeParseLocalStorage<any>('uword_creds', {})
+    const updated = {
+      ...existing,
+      uword: {
+        username: quickUwordEmail.value,
+        password: quickUwordPassword.value,
+        site_url: 'https://u-word.com/login',
+        post_url: 'https://u-word.com/myPage/realTimePost'
+      }
+    }
+    localStorage.setItem('uword_creds', JSON.stringify(updated))
+  }
+  localStorage.setItem('onboarding_done', '1')
+  showOnboarding.value = false
+  showToast('セットアップ完了！投稿を始めましょう', 'success')
 }
 
 // _savedCreds removed: replaced by safeParseLocalStorage below
@@ -1221,6 +1351,10 @@ async function deriveFromNote() {
         cta_url: noteCTAUrl.value,
         cta_text: noteCTAText.value,
         note_url: notePublishedUrl.value,
+        business_name: bizProfile.value.name,
+        business_type: bizProfile.value.type,
+        target_audience: bizProfile.value.target,
+        value_proposition: bizProfile.value.value,
         platforms: ['x_twitter', 'threads', 'instagram', 'facebook', 'linkedin', 'uword', 'umatching']
       })
     })
@@ -1527,6 +1661,10 @@ async function generateContent() {
         custom_style: customStyle.value,
         cta_url: noteCTAUrl.value,
         cta_text: noteCTAText.value,
+        business_name: bizProfile.value.name,
+        business_type: bizProfile.value.type,
+        target_audience: bizProfile.value.target,
+        value_proposition: bizProfile.value.value,
       }),
     })
     if (!res.ok) {
@@ -3616,6 +3754,61 @@ onMounted(() => {
 
 .toast-enter-active, .toast-leave-active { transition: opacity 0.3s, transform 0.3s; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-8px); }
+
+.biz-profile-section {
+  background: linear-gradient(135deg, rgba(240,253,244,0.8), rgba(236,253,245,0.8));
+  border: 1.5px solid #86efac;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.biz-profile-section h3 { font-size: 15px; font-weight: 700; color: #166534; margin-bottom: 4px; }
+.biz-profile-desc { font-size: 12px; color: #15803d; margin-bottom: 12px; }
+.biz-profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.biz-field { display: flex; flex-direction: column; gap: 4px; }
+.biz-field label { font-size: 11px; font-weight: 600; color: #166534; }
+.biz-field input, .biz-field textarea {
+  padding: 7px 10px; border: 1px solid #86efac; border-radius: 6px;
+  font-size: 12px; background: white;
+}
+.biz-field-full { grid-column: 1 / -1; }
+.btn-save-biz {
+  margin-top: 10px; padding: 8px 18px;
+  background: #16a34a; color: white; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.biz-saved-msg { font-size: 12px; color: #16a34a; margin-left: 10px; }
+
+.onboarding-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.onboarding-modal {
+  background: white; border-radius: 16px; padding: 32px;
+  max-width: 480px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+.onboarding-icon { font-size: 48px; text-align: center; margin-bottom: 12px; }
+.onboarding-modal h2 { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 10px; }
+.onboarding-modal p { font-size: 14px; color: #6b7280; text-align: center; margin-bottom: 20px; line-height: 1.6; }
+.onboarding-fields, .onboarding-quick-fields { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+.onboarding-field label, .onboarding-quick-fields label { font-size: 12px; font-weight: 600; color: #374151; }
+.onboarding-field input, .onboarding-quick-fields input {
+  padding: 10px 12px; border: 1.5px solid #d1d5db; border-radius: 8px; font-size: 14px; margin-top: 4px; width: 100%;
+}
+.required { color: #ef4444; }
+.btn-onboarding-next {
+  width: 100%; padding: 12px; background: linear-gradient(135deg, #7c3aed, #3b82f6);
+  color: white; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; margin-bottom: 8px;
+}
+.btn-onboarding-next:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-onboarding-skip { width: 100%; padding: 8px; background: none; border: none; color: #9ca3af; font-size: 13px; cursor: pointer; }
+
+.profile-hint {
+  font-size: 12px; color: #92400e; background: #fef3c7;
+  border: 1px solid #fcd34d; border-radius: 6px; padding: 8px 12px;
+  margin-bottom: 8px; cursor: pointer; display: flex; gap: 6px; align-items: center;
+}
+.profile-hint-link { font-weight: 600; text-decoration: underline; color: #92400e; }
 
 /* ============================================================ */
 /* クレデンシャル設定パネル */
