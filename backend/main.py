@@ -1605,11 +1605,27 @@ async def search_articles(req: ArticleSearchRequest):
 JSON配列のみを返してください。"""
 
     try:
-        result = await _call_gemini(prompt)
-        content = result.get("content", "[]")
-        import re as _re2
-        m = _re2.search(r'\[.*\]', content, _re2.DOTALL)
-        articles = json.loads(m.group()) if m else []
+        import urllib.request as _urlreq
+        api_key = os.environ.get('GEMINI_API_KEY', '')
+        if not api_key:
+            return ArticleSearchResponse(articles=[])
+        url = (f'https://generativelanguage.googleapis.com/v1beta/models/'
+               f'gemini-2.0-flash:generateContent?key={api_key}')
+        body = json.dumps({
+            'contents': [{'parts': [{'text': prompt}]}],
+            'generationConfig': {'responseMimeType': 'application/json'}
+        }).encode('utf-8')
+        req = _urlreq.Request(url, data=body,
+                              headers={'Content-Type': 'application/json'}, method='POST')
+        loop = __import__('asyncio').get_event_loop()
+        def _fetch():
+            with _urlreq.urlopen(req, timeout=30) as r:
+                return json.loads(r.read())
+        resp = await loop.run_in_executor(None, _fetch)
+        text = resp['candidates'][0]['content']['parts'][0]['text']
+        articles = json.loads(text)
+        if not isinstance(articles, list):
+            articles = []
         return ArticleSearchResponse(articles=articles)
     except Exception as e:
         _logger.warning("search_articles error: %s", e)
