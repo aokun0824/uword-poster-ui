@@ -184,8 +184,8 @@ TONE_PROMPTS = {
 PLATFORM_CONFIGS = {
     "uword":     {"name": "リアルタイム速報", "icon": "📰", "char_limit": 400,   "has_poster": True,  "has_title": True},
     "umatching": {"name": "ミニブログ",       "icon": "📝", "char_limit": 300,   "has_poster": True,  "has_title": False},
-    "facebook":  {"name": "Facebook",         "icon": "🔵", "char_limit": 2000,  "has_poster": True, "has_title": False},
-    "instagram": {"name": "Instagram",        "icon": "📸", "char_limit": 2200,  "has_poster": True, "has_title": False},
+    "facebook":  {"name": "Facebook",         "icon": "🔵", "char_limit": 2000,  "has_poster": False, "has_title": False},
+    "instagram": {"name": "Instagram",        "icon": "📸", "char_limit": 2200,  "has_poster": False, "has_title": False},
     "threads":   {"name": "Threads",          "icon": "🧵", "char_limit": 500,   "has_poster": True, "has_title": False},
     "note":      {"name": "Note",             "icon": "📖", "char_limit": 10000, "has_poster": True, "has_title": True},
     "x_twitter": {"name": "X (Twitter)",      "icon": "✖️",  "char_limit": 280,   "has_poster": True, "has_title": False},

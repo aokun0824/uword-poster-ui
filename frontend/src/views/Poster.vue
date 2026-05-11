@@ -841,8 +841,8 @@ async function fetchPlatforms() {
     allPlatforms.value = [
       { value: 'uword',     name: 'リアルタイム速報', icon: '📰', char_limit: 400,   has_poster: true,  has_title: true  },
       { value: 'umatching', name: 'ミニブログ',       icon: '📝', char_limit: 300,   has_poster: true,  has_title: false },
-      { value: 'facebook',  name: 'Facebook',         icon: '🔵', char_limit: 2000,  has_poster: true,  has_title: false },
-      { value: 'instagram', name: 'Instagram',        icon: '📸', char_limit: 2200,  has_poster: true,  has_title: false },
+      { value: 'facebook',  name: 'Facebook',         icon: '🔵', char_limit: 2000,  has_poster: false, has_title: false },
+      { value: 'instagram', name: 'Instagram',        icon: '📸', char_limit: 2200,  has_poster: false, has_title: false },
       { value: 'threads',   name: 'Threads',          icon: '🧵', char_limit: 500,   has_poster: true,  has_title: false },
       { value: 'note',      name: 'Note',             icon: '📖', char_limit: 10000, has_poster: true,  has_title: true  },
       { value: 'x_twitter', name: 'X (Twitter)',      icon: '✖️',  char_limit: 280,   has_poster: true,  has_title: false },
