@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.triggers.cron import CronTrigger
-from typing import Literal
+from typing import Literal, Optional
 import sys
 import json
 import shutil
@@ -118,10 +118,11 @@ def _is_youtube_url(url: str) -> bool:
 # ──────────────────────────────────────────────────────────
 
 class PostRequest(BaseModel):
-    platform: Literal["uword", "umatching"]
+    platform: Literal["uword", "umatching", "facebook", "instagram", "threads", "note", "x_twitter", "linkedin"]
     title: str = ""
     content: str
     hashtags: list[str] = []
+    image_path: Optional[str] = None
 
 
 class PostResponse(BaseModel):
@@ -183,11 +184,12 @@ TONE_PROMPTS = {
 PLATFORM_CONFIGS = {
     "uword":     {"name": "リアルタイム速報", "icon": "📰", "char_limit": 400,   "has_poster": True,  "has_title": True},
     "umatching": {"name": "ミニブログ",       "icon": "📝", "char_limit": 300,   "has_poster": True,  "has_title": False},
-    "facebook":  {"name": "Facebook",         "icon": "🔵", "char_limit": 2000,  "has_poster": False, "has_title": False},
-    "instagram": {"name": "Instagram",        "icon": "📸", "char_limit": 2200,  "has_poster": False, "has_title": False},
-    "x":         {"name": "X (Twitter)",      "icon": "✖️",  "char_limit": 280,   "has_poster": False, "has_title": False},
-    "note":      {"name": "Note",             "icon": "📖", "char_limit": 10000, "has_poster": False, "has_title": True},
-    "linkedin":  {"name": "LinkedIn",         "icon": "💼", "char_limit": 3000,  "has_poster": False, "has_title": False},
+    "facebook":  {"name": "Facebook",         "icon": "🔵", "char_limit": 2000,  "has_poster": True, "has_title": False},
+    "instagram": {"name": "Instagram",        "icon": "📸", "char_limit": 2200,  "has_poster": True, "has_title": False},
+    "threads":   {"name": "Threads",          "icon": "🧵", "char_limit": 500,   "has_poster": True, "has_title": False},
+    "note":      {"name": "Note",             "icon": "📖", "char_limit": 10000, "has_poster": True, "has_title": True},
+    "x_twitter": {"name": "X (Twitter)",      "icon": "✖️",  "char_limit": 280,   "has_poster": True, "has_title": False},
+    "linkedin":  {"name": "LinkedIn",         "icon": "💼", "char_limit": 3000,  "has_poster": True, "has_title": True},
 }
 
 
@@ -519,6 +521,23 @@ async def post_content(req: PostRequest):
             content=content,
             credentials=creds,
         )
+    elif req.platform in ("facebook", "instagram", "threads", "note", "x_twitter"):
+        platform_name = req.platform if req.platform != "note" else "note_com"
+        from services.poster.platforms.base import get_platform
+        platform_obj = get_platform(platform_name)
+        result = await platform_obj.post(
+            title=req.title or None,
+            content=content,
+            image_path=req.image_path,
+            credentials=creds,
+        )
+    elif req.platform == "linkedin":
+        from services.poster.platforms.linkedin import LinkedInPlatform
+        result = await LinkedInPlatform().post(
+            title=req.title or None,
+            content=content,
+            credentials=creds,
+        )
     else:
         return PostResponse(success=False, error="unknown platform")
 
@@ -699,7 +718,7 @@ JSON形式: {{"title": "", "content": "...", "hashtags": [...]}}"""
 要件: 最初の1〜2行で強いフック / 本文100〜300文字 / 改行・空行を多用して読みやすく / 絵文字10〜20個 / ハッシュタグ15〜30個（本文末尾にまとめて記載）
 JSON形式: {{"title": "", "content": "...", "hashtags": [...]}}"""
 
-    elif req.platform == 'x':
+    elif req.platform == 'x_twitter':
         prompt = f"""X（Twitter）の投稿を作成してください。
 参考情報: {source_text}
 スタイル: {platform_style}{custom_addition}
@@ -887,7 +906,7 @@ async def generate_image_endpoint(req: ImageGenRequest):
         'instagram': ', vibrant lifestyle photography, square format, Instagram aesthetic',
         'facebook':  ', warm engaging tones, horizontal format, professional photography',
         'note':      ', clean minimal blog header, white background, professional',
-        'x':         ', bold eye-catching, high contrast, impactful',
+        'x_twitter': ', bold eye-catching, high contrast, impactful',
         'linkedin':  ', professional business photography, clean neutral background',
         'uword':     ', professional high quality',
         'umatching': ', appealing photogenic lifestyle',

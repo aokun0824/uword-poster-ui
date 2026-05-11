@@ -168,7 +168,7 @@
         </div>
 
         <!-- AI 画像生成 -->
-        <div class="image-gen-section">
+        <div v-if="['instagram','facebook'].includes(activePlatform)" class="image-gen-section">
           <div class="image-gen-header" @click="showImageGen = !showImageGen">
             <span class="image-gen-title">🎨 AI 画像生成 <span class="powered-by">powered by Gemini</span></span>
             <span class="image-gen-toggle">{{ showImageGen ? '▲' : '▼' }}</span>
@@ -185,23 +185,23 @@
             <div class="image-gen-buttons">
               <button
                 @click="generateImage"
-                :disabled="imageGenerating"
+                :disabled="generatingImage"
                 class="btn-gen-image"
               >
-                {{ imageGenerating ? '⏳ 生成中...' : '✨ 画像を生成' }}
+                {{ generatingImage ? '⏳ 生成中...' : '✨ 画像を生成' }}
               </button>
-              <span v-if="imageGenerating" class="image-gen-hint">Geminiが画像を生成中です（10〜30秒）</span>
+              <span v-if="generatingImage" class="image-gen-hint">Geminiが画像を生成中です（10〜30秒）</span>
             </div>
             <div v-if="imageGenError" class="generate-error">{{ imageGenError }}</div>
-            <div v-if="generatedImageSrc" class="generated-image-preview">
-              <img :src="generatedImageSrc" alt="AI生成画像" class="gen-image-thumb" />
+            <div v-if="generatedImageUrl" class="generated-image-preview">
+              <img :src="generatedImageUrl" alt="AI生成画像" class="gen-image-thumb generated-preview" />
               <div class="gen-image-meta">
                 <div class="used-prompt-text">{{ usedImagePrompt }}</div>
                 <div class="gen-image-actions">
                   <button @click="useGeneratedImage" class="btn-use-image">
                     📎 この画像を使う
                   </button>
-                  <button @click="generateImage" :disabled="imageGenerating" class="btn-regen-image">
+                  <button @click="generateImage" :disabled="generatingImage" class="btn-regen-image">
                     🔄 再生成
                   </button>
                 </div>
@@ -211,7 +211,7 @@
         </div>
 
         <!-- 画像アップロード -->
-        <div v-if="activePlatform !== 'uword' && activePlatform !== 'x' && activePlatform !== 'linkedin'" class="field image-section">
+        <div v-if="activePlatform !== 'uword' && activePlatform !== 'x_twitter' && activePlatform !== 'linkedin'" class="field image-section">
           <label class="label">投稿画像（任意）</label>
           <div class="image-upload-row">
             <label class="btn-file-label">
@@ -359,7 +359,7 @@
           <button @click="showPreview = false" class="btn-close">×</button>
         </div>
         <div class="preview-platform">
-          <span class="platform-badge">{{ activeTab === 'uword' ? 'リアルタイム速報' : 'ミニブログ' }}</span>
+          <span class="platform-badge">{{ currentPlatformConfig?.name || activePlatform }}</span>
         </div>
         <div v-if="previewData.title" class="preview-title">{{ previewData.title }}</div>
         <div class="preview-body">{{ previewData.fullContent }}</div>
@@ -623,6 +623,56 @@
             <input v-model="creds.umatching.post_url" type="url" placeholder="https://u-word.com/horby/myPage/blogPost" />
           </div>
 
+          <div class="settings-platform-title">Facebook</div>
+          <div class="creds-grid">
+            <label>ユーザー名 / メール</label>
+            <input v-model="creds.facebook.username" type="text" placeholder="your@email.com" />
+            <label>パスワード</label>
+            <input v-model="creds.facebook.password" type="password" placeholder="パスワード" />
+          </div>
+
+          <div class="settings-platform-title">Instagram</div>
+          <div class="creds-grid">
+            <label>ユーザー名 / メール</label>
+            <input v-model="creds.instagram.username" type="text" placeholder="your@email.com" />
+            <label>パスワード</label>
+            <input v-model="creds.instagram.password" type="password" placeholder="パスワード" />
+          </div>
+
+          <div class="settings-platform-title">Threads</div>
+          <div class="creds-grid">
+            <label>ユーザー名 / メール</label>
+            <input v-model="creds.threads.username" type="text" placeholder="your@email.com" />
+            <label>パスワード</label>
+            <input v-model="creds.threads.password" type="password" placeholder="パスワード" />
+          </div>
+
+          <div class="settings-platform-title">Note</div>
+          <div class="creds-grid">
+            <label>ユーザー名 / メール</label>
+            <input v-model="creds.note.username" type="text" placeholder="your@email.com" />
+            <label>パスワード</label>
+            <input v-model="creds.note.password" type="password" placeholder="パスワード" />
+            <label>Cookie（任意）</label>
+            <input v-model="creds.note.cookie" type="text" placeholder="note_session=..." />
+          </div>
+
+          <div class="settings-platform-title">X (Twitter)</div>
+          <div class="creds-grid">
+            <label>ユーザー名 / メール</label>
+            <input v-model="creds.x_twitter.username" type="text" placeholder="your@email.com" />
+            <label>パスワード</label>
+            <input v-model="creds.x_twitter.password" type="password" placeholder="パスワード" />
+          </div>
+
+          <div class="settings-platform-title">LinkedIn</div>
+          <div class="creds-grid">
+            <label>ユーザー名 / メール</label>
+            <input v-model="creds.linkedin.username" type="text" placeholder="your@email.com" />
+            <label>パスワード</label>
+            <input v-model="creds.linkedin.password" type="password" placeholder="パスワード" />
+          </div>
+
           <button @click="saveCreds" class="btn-save-creds">💾 保存（ブラウザに記憶）</button>
           <p class="creds-note">⚠️ パスワードはブラウザ localStorage にのみ保存。サーバーには送信時のみ使用。</p>
         </div>
@@ -703,12 +753,32 @@ type PageTab = 'post' | 'auto' | 'review' | 'diagnose' | 'logs' | 'settings'
 
 // クレデンシャル（localStorage に永続化）
 const _savedCreds = localStorage.getItem('uword_creds')
+type PlatformCreds = {
+  username: string
+  password: string
+  site_url?: string
+  post_url?: string
+  cookie?: string
+}
+
 const creds = ref<{
   uword: { username: string; password: string; site_url: string; post_url: string }
   umatching: { username: string; password: string; site_url: string; post_url: string }
+  facebook: PlatformCreds
+  instagram: PlatformCreds
+  threads: PlatformCreds
+  note: PlatformCreds
+  x_twitter: PlatformCreds
+  linkedin: PlatformCreds
 }>({
   uword: { username: '', password: '', site_url: 'https://u-word.com/horby/login', post_url: 'https://u-word.com/horby/myPage/realTimePost' },
   umatching: { username: '', password: '', site_url: '', post_url: '' },
+  facebook: { username: '', password: '' },
+  instagram: { username: '', password: '' },
+  threads: { username: '', password: '' },
+  note: { username: '', password: '', cookie: '' },
+  x_twitter: { username: '', password: '' },
+  linkedin: { username: '', password: '' },
   ...(_savedCreds ? JSON.parse(_savedCreds) : {}),
 })
 
@@ -718,7 +788,7 @@ function saveCreds() {
 }
 
 const currentCreds = computed(() =>
-  activeTab.value === 'uword' ? creds.value.uword : creds.value.umatching
+  creds.value[activePlatform.value as keyof typeof creds.value] || creds.value.uword
 )
 
 // トースト通知
@@ -746,7 +816,6 @@ const pageTab = ref<PageTab>('post')
 
 // フォーム状態
 const activePlatform = ref('uword')
-// 後方互換: 投稿機能は uword/umatching のみ
 const activeTab = computed(() =>
   ['uword', 'umatching'].includes(activePlatform.value)
     ? (activePlatform.value as 'uword' | 'umatching')
@@ -772,11 +841,12 @@ async function fetchPlatforms() {
     allPlatforms.value = [
       { value: 'uword',     name: 'リアルタイム速報', icon: '📰', char_limit: 400,   has_poster: true,  has_title: true  },
       { value: 'umatching', name: 'ミニブログ',       icon: '📝', char_limit: 300,   has_poster: true,  has_title: false },
-      { value: 'facebook',  name: 'Facebook',         icon: '🔵', char_limit: 2000,  has_poster: false, has_title: false },
-      { value: 'instagram', name: 'Instagram',        icon: '📸', char_limit: 2200,  has_poster: false, has_title: false },
-      { value: 'x',         name: 'X (Twitter)',      icon: '✖️',  char_limit: 280,   has_poster: false, has_title: false },
-      { value: 'note',      name: 'Note',             icon: '📖', char_limit: 10000, has_poster: false, has_title: true  },
-      { value: 'linkedin',  name: 'LinkedIn',         icon: '💼', char_limit: 3000,  has_poster: false, has_title: false },
+      { value: 'facebook',  name: 'Facebook',         icon: '🔵', char_limit: 2000,  has_poster: true,  has_title: false },
+      { value: 'instagram', name: 'Instagram',        icon: '📸', char_limit: 2200,  has_poster: true,  has_title: false },
+      { value: 'threads',   name: 'Threads',          icon: '🧵', char_limit: 500,   has_poster: true,  has_title: false },
+      { value: 'note',      name: 'Note',             icon: '📖', char_limit: 10000, has_poster: true,  has_title: true  },
+      { value: 'x_twitter', name: 'X (Twitter)',      icon: '✖️',  char_limit: 280,   has_poster: true,  has_title: false },
+      { value: 'linkedin',  name: 'LinkedIn',         icon: '💼', char_limit: 3000,  has_poster: true,  has_title: true  },
     ]
   }
 }
@@ -791,14 +861,15 @@ const copied = ref(false)
 // AI 画像生成
 const showImageGen = ref(false)
 const imagePrompt = ref('')
-const imageGenerating = ref(false)
+const generatingImage = ref(false)
 const imageGenError = ref('')
-const generatedImageSrc = ref('')
+const generatedImageUrl = ref('')
+const generatedImagePath = ref('')
 const usedImagePrompt = ref('')
 const generatedImageBlob = ref<Blob | null>(null)
 
 async function generateImage() {
-  imageGenerating.value = true
+  generatingImage.value = true
   imageGenError.value = ''
   try {
     const res = await fetch(`${BASE}/api/generate-image`, {
@@ -816,8 +887,17 @@ async function generateImage() {
       return
     }
     const data = await res.json()
+    if (data.image_url) {
+      generatedImageUrl.value = data.image_url
+      generatedImagePath.value = data.image_path || ''
+      usedImagePrompt.value = data.used_prompt || imagePrompt.value
+      generatedImageBlob.value = null
+      showToast('画像を生成しました ✨', 'success')
+      return
+    }
     const mimeType = data.mime_type || 'image/png'
-    generatedImageSrc.value = `data:${mimeType};base64,${data.image_data}`
+    generatedImageUrl.value = `data:${mimeType};base64,${data.image_data}`
+    generatedImagePath.value = data.image_path || ''
     usedImagePrompt.value = data.used_prompt || ''
     // base64 → Blob（添付用）
     const bytes = atob(data.image_data)
@@ -827,8 +907,9 @@ async function generateImage() {
     showToast('画像を生成しました ✨', 'success')
   } catch {
     imageGenError.value = 'ネットワークエラー: バックエンドに接続できません'
+    showToast('画像生成に失敗しました', 'error')
   } finally {
-    imageGenerating.value = false
+    generatingImage.value = false
   }
 }
 
@@ -1150,9 +1231,10 @@ async function submitPost() {
   loading.value = true
   result.value = null
   repairLogs.value = []
+  const platform = activePlatform.value
 
   const formData = new FormData()
-  formData.append('platform', activeTab.value)
+  formData.append('platform', platform)
   formData.append('title', title.value)
   formData.append('content', content.value)
   formData.append('hashtags', hashtagList.value.join(','))
@@ -1166,7 +1248,22 @@ async function submitPost() {
   if (c.post_url) formData.append('cred_post_url', c.post_url || '')
 
   try {
-    const res = await fetch(`${BASE}/api/post-with-healing`, { method: 'POST', body: formData })
+    let res: Response
+    if (platform === 'uword' || platform === 'umatching') {
+      res = await fetch(`${BASE}/api/post-with-healing`, { method: 'POST', body: formData })
+    } else {
+      res = await fetch(`${BASE}/api/post`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform,
+          title: title.value,
+          content: content.value,
+          hashtags: hashtagList.value,
+          image_path: generatedImagePath.value || null,
+        }),
+      })
+    }
     const data = await res.json()
     result.value = { success: data.success, post_url: data.post_url || '', error: data.error || '' }
 
