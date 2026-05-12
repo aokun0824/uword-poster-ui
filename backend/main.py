@@ -306,7 +306,7 @@ async def _call_gemini(prompt: str) -> dict:
     api_key = os.environ.get('GEMINI_API_KEY', '')
     if not api_key:
         raise ValueError('GEMINI_API_KEY not set')
-    url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}'
+    url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}'
     body = json.dumps({
         'contents': [{'parts': [{'text': prompt}]}],
         'generationConfig': {'responseMimeType': 'application/json'}
@@ -797,7 +797,7 @@ JSON形式のみで返してください:
 {{"title": "25-40字タイトル with numbers+benefit", "content": "5000字+本文", "hashtags": ["tag1","tag2","tag3"]}}"""
 
         def _call_note_gemini() -> dict:
-            url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}'
+            url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}'
             body = json.dumps({
                 'contents': [{'parts': [{'text': prompt}]}],
                 'generationConfig': {
@@ -916,7 +916,7 @@ async def derive_from_note(req: DeriveRequest):
     try:
         import urllib.request as _urlreq
         url = (f'https://generativelanguage.googleapis.com/v1beta/models/'
-               f'gemini-2.0-flash:generateContent?key={api_key}')
+               f'gemini-2.5-flash:generateContent?key={api_key}')
         body = json.dumps({
             'contents': [{'parts': [{'text': prompt}]}],
             'generationConfig': {'responseMimeType': 'application/json'}
@@ -1826,7 +1826,7 @@ JSON配列のみを返してください。"""
     try:
         import urllib.request as _urlreq
         gemini_url = (f'https://generativelanguage.googleapis.com/v1beta/models/'
-                      f'gemini-2.0-flash:generateContent?key={api_key}')
+                      f'gemini-2.5-flash:generateContent?key={api_key}')
         body = json.dumps({
             'contents': [{'parts': [{'text': prompt}]}],
             'generationConfig': {'responseMimeType': 'application/json'}
