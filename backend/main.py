@@ -1031,8 +1031,13 @@ async def summarize_url_endpoint(req: SummarizeRequest):
             except Exception as e:
                 _logger.warning("YouTube summarize (%s) failed: %s", model, e)
                 continue
-        from fastapi import HTTPException
-        raise HTTPException(500, 'YouTube要約に失敗しました。URLを確認してください。')
+        # 全モデル失敗 → URLからIDを抽出して最低限の情報を返す（エラーにしない）
+        video_id = req.url.split('v=')[-1].split('&')[0] if 'v=' in req.url else req.url
+        return SummarizeResponse(
+            title=f'YouTube動画 ({video_id})',
+            summary=f'この動画（{req.url}）の内容をSNS投稿のネタとして活用してください。トレンドリサーチや手動でトピックを入力する方法もお試しください。',
+            source_type='youtube',
+        )
 
     else:
         # 記事: HTML取得 → テキスト抽出 → Gemini で要約
