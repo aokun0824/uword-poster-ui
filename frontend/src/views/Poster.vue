@@ -1629,11 +1629,11 @@ async function summarizeUrl() {
     }
     const data = await res.json()
     summaryText.value = data.summary || ''
-    if (data.title && !generateSource.value.includes(data.title)) {
-      showToast(`「${data.title}」を要約しました`, 'success')
-    } else {
-      showToast('要約が完了しました', 'success')
+    if (data.title) {
+      showToast(`「${data.title}」を要約中... ブログを生成します`, 'info')
     }
+    // 要約完了後、自動でコンテンツ生成を実行
+    await generateContent()
   } catch {
     summarizeError.value = 'ネットワークエラー: バックエンドに接続できません'
   } finally {

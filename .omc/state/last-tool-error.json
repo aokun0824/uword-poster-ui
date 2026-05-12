@@ -1,7 +1,7 @@
 {
-  "tool_name": "Read",
-  "tool_input_preview": "{\"file_path\":\"/Users/jungosakamoto/Claude/dev/products/uword-poster-ui/frontend/src/views/Poster.vue\"}",
-  "error": "File content (42591 tokens) exceeds maximum allowed tokens (25000). Use offset and limit parameters to read specific portions of the file, or search for specific content instead of reading the whole file.",
-  "timestamp": "2026-05-11T15:23:20.276Z",
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"git add backend/main.py && git commit -m \\\"fix: YouTube summarize never returns 500 — final fallback returns URL info\\\" && git push origin main && ssh root@72.61.119.101 \\\"cd /tmp/uword-ne...",
+  "error": "Exit code 255\n[main 8714e24] fix: YouTube summarize never returns 500 — final fallback returns URL info\n 1 file changed, 7 insertions(+), 2 deletions(-)\nTo https://github.com/kodawarimax/uword-poster-ui.git\n   7689620..8714e24  main -> main",
+  "timestamp": "2026-05-12T00:47:12.651Z",
   "retry_count": 1
 }

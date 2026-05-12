@@ -1,7 +1,7 @@
 {
-  "tool_name": "mcp__playwright__browser_click",
-  "tool_input_preview": "{\"target\":\"button:has-text(\\\"設定\\\")\",\"element\":\"設定タブ\"}",
-  "error": "### Error\nError: browserBackend.callTool: Error: strict mode violation: locator('button:has-text(\"設定\")') resolved to 2 elements:\n    1) <button class=\"page-tab\" data-v-efe385d6=\"\">⚙️ 自動設定</button> aka getByRole('button', { name: '⚙️ 自動設定' })\n    2) <button class=\"page-tab\" data-v-efe385d6=\"\">⚙️ 設定</button> aka getByRole('button', { name: '⚙️ 設定' })\n\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"設定\")')\u001b[22m",
-  "timestamp": "2026-05-11T13:03:55.953Z",
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"scp -r /Users/jungosakamoto/Claude/dev/products/uword-poster-ui/frontend/dist/* root@72.61.119.101:/var/www/uword/ && \\\\\\nssh root@72.61.119.101 \\\"cp /tmp/uword-new/backend/main.py /root/u...",
+  "error": "Exit code 255\nUpdating dab2fb6..d7daade\nFast-forward\n backend/main.py               | 110 ++++++++++++++++-\n frontend/src/views/Poster.vue | 269 +++++++++++++++++++++++++++++++++++++++++-\n 2 files changed, 372 insertions(+), 7 deletions(-)",
+  "timestamp": "2026-05-11T20:32:38.485Z",
   "retry_count": 1
 }
