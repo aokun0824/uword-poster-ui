@@ -1003,6 +1003,7 @@ async def summarize_url_endpoint(req: SummarizeRequest):
                 }).encode('utf-8')
 
         for model, use_video in [
+            ('gemini-2.5-flash', True),
             ('gemini-1.5-flash', True),
             ('gemini-2.0-flash', False),
         ]:
