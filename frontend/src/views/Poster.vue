@@ -6,6 +6,48 @@
         {{ toastMsg }}
       </div>
     </transition>
+
+    <!-- メール入力モーダル（初回） -->
+    <div v-if="showEmailModal" class="modal-overlay">
+      <div class="modal-card">
+        <div style="font-size:2rem;margin-bottom:12px">📧</div>
+        <h2 style="margin:0 0 8px;font-size:1.2rem">メールアドレスを登録</h2>
+        <p style="font-size:0.85rem;color:#888;margin:0 0 16px">サブスクリプション管理に使用します</p>
+        <input
+          v-model="quickUwordEmail"
+          type="email"
+          placeholder="your@email.com"
+          class="modal-input"
+          @keyup.enter="saveEmail(quickUwordEmail)"
+        />
+        <button class="modal-btn-primary" @click="saveEmail(quickUwordEmail)" :disabled="!quickUwordEmail">
+          登録する
+        </button>
+        <button class="modal-btn-skip" @click="showEmailModal = false">後で</button>
+      </div>
+    </div>
+
+    <!-- アップグレードモーダル -->
+    <div v-if="showUpgradeModal" class="modal-overlay" @click.self="showUpgradeModal = false">
+      <div class="modal-card upgrade-card">
+        <div style="font-size:2.5rem;margin-bottom:8px">🚀</div>
+        <h2 style="margin:0 0 8px;font-size:1.3rem;color:#e75480">プレミアムプランで全SNSに投稿</h2>
+        <p style="font-size:0.85rem;color:#888;margin:0 0 20px;line-height:1.6">
+          Instagram・Facebook・Threads・note・X・LinkedIn・UMatchingへの<br>
+          投稿・AI生成・スケジューラーが使えます
+        </p>
+        <div class="upgrade-features">
+          <div class="upgrade-feature">✅ 全8プラットフォーム対応</div>
+          <div class="upgrade-feature">✅ AI自動コンテンツ生成</div>
+          <div class="upgrade-feature">✅ 自動スケジュール投稿</div>
+          <div class="upgrade-feature">✅ note-first 一括派生</div>
+        </div>
+        <button class="modal-btn-primary upgrade-btn" @click="startSubscription">
+          プレミアムにアップグレード →
+        </button>
+        <button class="modal-btn-skip" @click="showUpgradeModal = false">後で</button>
+      </div>
+    </div>
     <div v-if="showOnboarding" class="onboarding-overlay">
       <div class="onboarding-modal">
         <div class="onboarding-step" v-if="onboardingStep === 1">
@@ -78,13 +120,16 @@
             v-for="p in allPlatforms"
             :key="p.value"
             class="platform-btn"
-            :class="{ active: activePlatform === p.value }"
-            @click="activePlatform = p.value"
+            :class="{ active: activePlatform === p.value, locked: PREMIUM_PLATFORMS.has(p.value) && !isPremium }"
+            @click="selectPlatform(p.value)"
           >
             <span class="plat-icon">{{ p.icon }}</span>
             <span class="plat-name">{{ p.name }}</span>
-            <span v-if="p.has_poster" class="plat-poster-badge">投稿</span>
-            <span v-if="!p.has_poster" class="gen-only-badge">生成のみ</span>
+            <span v-if="PREMIUM_PLATFORMS.has(p.value) && !isPremium" class="plat-lock-badge">🔒 PRO</span>
+            <template v-else>
+              <span v-if="p.has_poster" class="plat-poster-badge">投稿</span>
+              <span v-if="!p.has_poster" class="gen-only-badge">生成のみ</span>
+            </template>
           </button>
         </div>
         <div v-if="!bizProfile.name" class="profile-hint" @click="pageTab = 'settings'">
@@ -1211,6 +1256,63 @@ const pageTabs = [
 const pageTab = ref<PageTab>('post')
 
 // フォーム状態
+// ── サブスクリプション ──────────────────────────────────────
+const PREMIUM_PLATFORMS = new Set(['instagram','facebook','threads','note','x_twitter','linkedin','umatching'])
+const userEmail = ref(localStorage.getItem('user_email') || '')
+const isPremium = ref(false)
+const showUpgradeModal = ref(false)
+const showEmailModal = ref(!localStorage.getItem('user_email'))
+
+async function checkSubscription() {
+  if (!userEmail.value) return
+  try {
+    const res = await fetch(`${BASE}/api/stripe/status?email=${encodeURIComponent(userEmail.value)}`)
+    const data = await res.json()
+    isPremium.value = data.is_premium
+  } catch { isPremium.value = false }
+}
+
+function saveEmail(email: string) {
+  userEmail.value = email
+  localStorage.setItem('user_email', email)
+  showEmailModal.value = false
+  checkSubscription()
+}
+
+async function startSubscription() {
+  if (!userEmail.value) { showEmailModal.value = true; return }
+  const res = await fetch(`${BASE}/api/stripe/checkout`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: userEmail.value,
+      success_url: window.location.href,
+      cancel_url: window.location.href,
+    })
+  })
+  const data = await res.json()
+  if (data.url) window.location.href = data.url
+}
+
+async function openCustomerPortal() {
+  const res = await fetch(`${BASE}/api/stripe/portal`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: userEmail.value, return_url: window.location.href })
+  })
+  const data = await res.json()
+  if (data.url) window.location.href = data.url
+}
+
+function selectPlatform(platform: string) {
+  if (PREMIUM_PLATFORMS.has(platform) && !isPremium.value) {
+    showUpgradeModal.value = true
+    return
+  }
+  activePlatform.value = platform
+}
+// ────────────────────────────────────────────────────────────
+
 const activePlatform = ref('uword')
 const activeTab = computed(() =>
   ['uword', 'umatching'].includes(activePlatform.value)
@@ -1990,6 +2092,14 @@ onMounted(() => {
   fetchJobs()
   fetchReview()
   fetchDetailLogs()
+  checkSubscription()
+  // Stripeリダイレクト後の処理
+  if (window.location.search.includes('session_id=')) {
+    isPremium.value = true
+    showToast('プレミアムプランが有効になりました！', 'success')
+    window.history.replaceState({}, '', window.location.pathname)
+    checkSubscription()
+  }
 })
 </script>
 
@@ -4050,6 +4160,59 @@ onMounted(() => {
   border-radius: 3px;
   padding: 1px 3px;
   margin-left: 2px;
+}
+
+/* ── サブスクリプション ── */
+.platform-btn.locked { opacity: 0.6; }
+.plat-lock-badge {
+  font-size: 9px;
+  background: #6366f1;
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px 28px;
+  width: 90%; max-width: 400px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+}
+.upgrade-card { max-width: 440px; }
+.upgrade-features {
+  text-align: left;
+  background: #f9f5ff;
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+.upgrade-feature { font-size: 0.9rem; padding: 4px 0; color: #3d1a4a; }
+.modal-input {
+  width: 100%; box-sizing: border-box;
+  border: 1px solid #ddd; border-radius: 8px;
+  padding: 10px 14px; font-size: 0.95rem;
+  margin-bottom: 12px;
+}
+.modal-btn-primary {
+  width: 100%; padding: 12px;
+  background: linear-gradient(135deg, #e75480, #9b59b6);
+  color: #fff; border: none; border-radius: 10px;
+  font-size: 1rem; font-weight: 700; cursor: pointer;
+  margin-bottom: 8px;
+}
+.modal-btn-primary:disabled { opacity: 0.5; cursor: default; }
+.upgrade-btn { background: linear-gradient(135deg, #6366f1, #9b59b6); }
+.modal-btn-skip {
+  width: 100%; padding: 8px;
+  background: none; border: none;
+  color: #aaa; font-size: 0.85rem; cursor: pointer;
 }
 
 /* コピーボタン */

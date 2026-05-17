@@ -1,6 +1,6 @@
 """U-Word 投稿専用 API — port 5201"""
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Form, UploadFile, File, Query
+from fastapi import FastAPI, Form, UploadFile, File, Query, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -24,8 +24,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+import stripe_service
+
 @asynccontextmanager
 async def lifespan(app):
+    stripe_service.init_db()
     scheduler.start()
     await _reload_jobs()
     yield
@@ -1846,3 +1849,47 @@ JSON配列のみを返してください。"""
     except Exception as e:
         _logger.warning("search_articles error: %s", e)
         return ArticleSearchResponse(articles=[])
+
+
+# ============================================================
+# Stripe サブスクリプション API
+# ============================================================
+
+class CheckoutRequest(BaseModel):
+    email: str
+    success_url: str
+    cancel_url: str
+
+class PortalRequest(BaseModel):
+    email: str
+    return_url: str
+
+@app.get("/api/stripe/status")
+async def stripe_status(email: str):
+    """サブスク状態確認"""
+    return stripe_service.get_status(email)
+
+@app.post("/api/stripe/checkout")
+async def stripe_checkout(req: CheckoutRequest):
+    """Stripe Checkout セッション作成"""
+    if not stripe_service.STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Stripe未設定")
+    url = stripe_service.create_checkout_session(req.email, req.success_url, req.cancel_url)
+    return {"url": url}
+
+@app.post("/api/stripe/portal")
+async def stripe_portal(req: PortalRequest):
+    """サブスク管理ポータル"""
+    url = stripe_service.create_portal_session(req.email, req.return_url)
+    return {"url": url}
+
+@app.post("/api/stripe/webhook")
+async def stripe_webhook(request: Request):
+    """Stripe Webhook（支払い完了・解約を受け取る）"""
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    try:
+        etype = stripe_service.handle_webhook(payload, sig)
+        return {"ok": True, "type": etype}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
