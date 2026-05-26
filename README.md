@@ -11,6 +11,7 @@ AI（Gemini / LLaMA）でコンテンツを自動生成し、Playwright で U-Wo
 - **自動スケジュール**: 毎日 08:30 / 19:30 に自動投稿（APScheduler）
 - **今日の投稿状況**: リアルタイム速報・ミニブログそれぞれの残枠を表示
 - **週次レビュー**: 投稿パフォーマンスの週次レポート
+- **AIキャラクターアシスタント**: 好きなキャラを選んでSNS投稿の相談ができるチャット機能
 
 ## スクリーンショット
 
@@ -40,8 +41,25 @@ git clone https://github.com/kodawarimax/auto-poster.git
 
 ```bash
 cp backend/.env.example backend/.env
-# backend/.env を編集して AP_BACKEND のパスを確認
+# backend/.env を編集して以下を設定
 ```
+
+**backend/.env の必須項目：**
+
+```
+AP_BACKEND=/path/to/auto-poster/backend   # auto-posterのパス
+
+GEMINI_API_KEY=your_gemini_api_key_here   # AIチャット機能に必要
+```
+
+**Gemini API キーの取得方法（無料）：**
+
+1. [Google AI Studio](https://aistudio.google.com) にアクセス
+2. Googleアカウントでログイン
+3. 「Get API key」→「Create API key」をクリック
+4. 表示されたキーを `GEMINI_API_KEY=` の後に貼り付ける
+
+> キーを取得しない場合でも、チャット機能以外は通常通り使えます。
 
 ### 3. バックエンド起動
 
