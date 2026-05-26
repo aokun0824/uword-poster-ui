@@ -20,6 +20,10 @@ venv/
 # Backups
 backups/
 
+# Runtime state
+backend/character_settings.json
+backend/uploads/
+
 # OS
 .DS_Store
 .omc/

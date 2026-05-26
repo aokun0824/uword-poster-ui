@@ -132,9 +132,85 @@
             </template>
           </button>
         </div>
+
         <div v-if="!bizProfile.name" class="profile-hint" @click="pageTab = 'settings'">
           ⚠️ 事業プロフィールを設定するとAI生成の精度が上がります →
           <span class="profile-hint-link">設定タブで入力する</span>
+        </div>
+
+        <div class="avatar-builder-card">
+          <!-- Left: preview -->
+          <div class="avatar-builder-preview">
+            <div
+              v-html="posterAvatarHtml(1.25)"
+              :class="['avatar-builder-pixel', { 'gacha-spin': gachaSpinning }]"
+            ></div>
+            <span class="avatar-builder-status">{{ avatarSaved ? '保存済み' : '未保存' }}</span>
+            <button class="btn-gacha" @click="randomizeAvatar" :disabled="gachaSpinning">
+              {{ gachaSpinning ? '✨ ...' : '🎲 ガチャる' }}
+            </button>
+          </div>
+
+          <!-- Right: customizer -->
+          <div class="avatar-builder-body">
+            <div class="avatar-builder-heading">
+              <h3>アシスタントをカスタマイズ</h3>
+              <p>キャラクター・名前・性格を決めて会話をスタート</p>
+            </div>
+
+            <!-- 性別 -->
+            <div class="cust-row">
+              <span class="cust-label">性別</span>
+              <div class="cust-seg">
+                <button :class="{ active: selectedGender === 'female' }" @click="selectedGender = 'female'">👩 女性</button>
+                <button :class="{ active: selectedGender === 'male' }"   @click="selectedGender = 'male'">👦 男性</button>
+              </div>
+            </div>
+
+            <!-- 服装・スタイル -->
+            <div class="cust-row">
+              <span class="cust-label">服装・スタイル</span>
+              <div class="cust-outfit-grid">
+                <button
+                  v-for="p in currentGenderPresets" :key="p.id"
+                  class="cust-outfit-btn"
+                  :class="{ active: posterAvatar.avatar === p.src }"
+                  @click="posterAvatar.avatar = p.src; posterAvatar.avatar_type = 'preset'; avatarSaved = false"
+                >
+                  <img :src="p.src" :alt="p.label" class="cust-outfit-thumb" />
+                  <span class="cust-outfit-label">{{ p.label }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 名前 -->
+            <div class="cust-row">
+              <span class="cust-label">名前</span>
+              <input
+                v-model="posterAvatar.name"
+                class="cust-name-input"
+                placeholder="アシスタントの名前（例: ユイ）"
+                @input="avatarSaved = false"
+              />
+            </div>
+
+            <!-- 性格 -->
+            <div class="cust-row">
+              <span class="cust-label">性格</span>
+              <div class="cust-seg cust-seg-wrap">
+                <button
+                  v-for="p in personalityOptions" :key="p.key"
+                  :class="{ active: selectedPersonalityKey === p.key }"
+                  @click="selectedPersonalityKey = p.key; posterAvatar.personality = p.value; avatarSaved = false"
+                >{{ p.label }}</button>
+              </div>
+            </div>
+
+            <!-- 決定ボタン -->
+            <button class="btn-avatar-save" @click="savePosterAvatar(true)" :disabled="avatarSaving">
+              {{ avatarSaving ? '保存中...' : '決定して会話する →' }}
+            </button>
+          </div>
         </div>
 
         <div v-if="activePlatform === 'note'" class="note-first-banner">
@@ -1120,6 +1196,269 @@ interface DiagResult {
 }
 
 type PageTab = 'post' | 'auto' | 'review' | 'diagnose' | 'logs' | 'settings'
+type AvatarGender = 'female' | 'male' | 'neutral'
+type AvatarHairStyle = 'short' | 'bob' | 'long' | 'spiky'
+type AvatarHairColor = 'brown' | 'black' | 'gray' | 'blonde' | 'green' | 'purple'
+type AvatarOutfit = 'hoodie' | 'apron' | 'dress' | 'jacket'
+type AvatarOutfitColor = 'rose' | 'orange' | 'pink' | 'green' | 'blue' | 'purple'
+type AvatarSkinTone = 'light' | 'tan' | 'brown' | 'dark'
+type AvatarEyeColor = 'brown' | 'blue' | 'green' | 'gray'
+type AvatarAccessory = 'none' | 'scarf' | 'glasses' | 'necklace' | 'belt'
+
+interface CharacterSettings {
+  name: string
+  avatar: string
+  avatar_type: string
+  gender: AvatarGender
+  hair_style: AvatarHairStyle
+  hair_color: AvatarHairColor
+  outfit: AvatarOutfit
+  outfit_color: AvatarOutfitColor
+  skin_tone: AvatarSkinTone
+  eye_color: AvatarEyeColor
+  accessory: AvatarAccessory
+  personality: string
+  greeting_morning: string
+  greeting_afternoon: string
+  greeting_evening: string
+}
+
+const POSTER_PRESET_AVATARS = [
+  { id: 'f_hoodie',   label: 'パーカー',       src: '/avatars/f_hoodie.png',   gender: 'female' },
+  { id: 'f_dress',    label: 'ドレス',         src: '/avatars/f_dress.png',    gender: 'female' },
+  { id: 'f_apron',    label: 'エプロン',       src: '/avatars/f_apron.png',    gender: 'female' },
+  { id: 'f_skirt',    label: 'スカート',       src: '/avatars/f_skirt.png',    gender: 'female' },
+  { id: 'm_jacket',   label: 'ジャケット',     src: '/avatars/m_jacket.png',   gender: 'male' },
+  { id: 'm_hoodie',   label: 'パーカー',       src: '/avatars/m_hoodie.png',   gender: 'male' },
+  { id: 'm_sweater',  label: 'セーター',       src: '/avatars/m_sweater.png',  gender: 'male' },
+  { id: 'm_overalls', label: 'オーバーオール', src: '/avatars/m_overalls.png', gender: 'male' },
+]
+
+
+const personalityOptions = [
+  { key: 'bright',       label: '明るく元気',  value: 'タメ口で話す。「！」と絵文字を毎文に入れる。例：「それめちゃいいじゃん！✨ 一緒にやろ～🔥」' },
+  { key: 'calm',         label: '穏やか',      value: 'ですます調で静かに話す。急がない。例：「そうですね…じっくり考えてみましょうか。」' },
+  { key: 'intellectual', label: '知的',        value: '箇条書きや番号で整理して話す。根拠を示す。例：「①まず目的を定め、②ターゲットを絞り、③訴求点を一つに絞るのが効果的です。」' },
+  { key: 'humor',        label: 'ユーモア',    value: '必ずダジャレか冗談を一つ入れる。「笑」や「w」を使う。例：「投稿かあ〜、ぽすっとしたいよねｗ まあ、バズりたいなら朝イチが鉄板だよ笑」' },
+]
+
+const selectedGender      = ref<'female' | 'male'>('female')
+const selectedPersonalityKey = ref('bright')
+
+const currentGenderPresets = computed(() =>
+  POSTER_PRESET_AVATARS.filter(p => p.gender === selectedGender.value)
+)
+
+watch(selectedGender, (g) => {
+  const cur = POSTER_PRESET_AVATARS.find(p => p.src === posterAvatar.value.avatar)
+  if (!cur || cur.gender !== g) {
+    const first = POSTER_PRESET_AVATARS.find(p => p.gender === g)
+    if (first) { posterAvatar.value = { ...posterAvatar.value, avatar: first.src, avatar_type: 'preset' }; avatarSaved.value = false }
+  }
+})
+
+const defaultCharacterSettings: CharacterSettings = {
+  name: 'ユイ',
+  avatar: '/avatars/f_hoodie.png',
+  avatar_type: 'preset',
+  gender: 'neutral',
+  hair_style: 'bob',
+  hair_color: 'brown',
+  outfit: 'hoodie',
+  outfit_color: 'rose',
+  skin_tone: 'light',
+  eye_color: 'brown',
+  accessory: 'scarf',
+  personality: '明るく元気で、投稿のお手伝いが大好きなAIアシスタントです。',
+  greeting_morning: 'おはよう！今日も一緒に頑張ろうね✨',
+  greeting_afternoon: 'こんにちは！投稿のお手伝いをするよ〜！',
+  greeting_evening: '今日もお疲れ様！夜の投稿もバッチリだよ🌙',
+}
+
+const posterAvatar = ref<CharacterSettings>({ ...defaultCharacterSettings })
+const avatarSaving = ref(false)
+const avatarSaved = ref(false)
+const avatarGenderOptions = [
+  { value: 'female' as const, label: '女性' },
+  { value: 'male' as const, label: '男性' },
+]
+const avatarHairOptions = [
+  { value: 'short' as const, label: 'ショート' },
+  { value: 'bob' as const, label: 'ボブ' },
+  { value: 'long' as const, label: 'ロング' },
+  { value: 'spiky' as const, label: 'スパイキー' },
+]
+const avatarOutfitOptions = [
+  { value: 'hoodie' as const, label: 'パーカー' },
+  { value: 'apron' as const, label: 'エプロン' },
+  { value: 'dress' as const, label: 'ワンピース' },
+  { value: 'jacket' as const, label: 'ジャケット' },
+]
+const avatarAccessoryOptions = [
+  { value: 'none' as const, label: 'なし' },
+  { value: 'scarf' as const, label: 'マフラー' },
+  { value: 'glasses' as const, label: 'メガネ' },
+  { value: 'necklace' as const, label: '首飾り' },
+  { value: 'belt' as const, label: 'ベルト' },
+]
+const avatarHairColorOptions = [
+  { value: 'brown' as const, label: 'ブラウン', color: '#5c3317' },
+  { value: 'black' as const, label: 'ブラック', color: '#1f1f28' },
+  { value: 'gray' as const, label: 'グレー', color: '#8790a0' },
+  { value: 'blonde' as const, label: 'ブロンド', color: '#c79b35' },
+  { value: 'green' as const, label: 'オリーブ', color: '#68751f' },
+  { value: 'purple' as const, label: 'パープル', color: '#533d7a' },
+]
+const avatarOutfitColorOptions = [
+  { value: 'rose' as const, label: 'ローズ', color: '#c85068' },
+  { value: 'orange' as const, label: 'オレンジ', color: '#c06a24' },
+  { value: 'pink' as const, label: 'ピンク', color: '#cf77a0' },
+  { value: 'green' as const, label: 'グリーン', color: '#4b7f45' },
+  { value: 'blue' as const, label: 'ブルー', color: '#3876a8' },
+  { value: 'purple' as const, label: 'パープル', color: '#7e4fa0' },
+]
+const avatarSkinOptions = [
+  { value: 'light' as const, label: 'ライト', color: '#f0c878' },
+  { value: 'tan' as const, label: 'タン', color: '#c58b55' },
+  { value: 'brown' as const, label: 'ブラウン', color: '#9a653b' },
+  { value: 'dark' as const, label: 'ダーク', color: '#6b3f28' },
+]
+const avatarEyeOptions = [
+  { value: 'brown' as const, label: 'ブラウン', color: '#2c1810' },
+  { value: 'blue' as const, label: 'ブルー', color: '#2b7fb8' },
+  { value: 'green' as const, label: 'グリーン', color: '#3d8b55' },
+  { value: 'gray' as const, label: 'グレー', color: '#596574' },
+]
+
+// ── LPC スプライト合成 (Poster用) ──
+const P_SPRITE_BASE = '/sprites'
+const P_HAIR_FILTERS: Record<string, string> = {
+  brown: 'none', black: 'brightness(0.25) saturate(0.5)',
+  gray: 'brightness(0.9) saturate(0)', blonde: 'brightness(1.7) saturate(1.1) hue-rotate(12deg)',
+  red: 'hue-rotate(-25deg) saturate(2)', purple: 'hue-rotate(280deg) saturate(1.6)',
+  blue: 'hue-rotate(185deg) saturate(1.8)', green: 'hue-rotate(100deg) saturate(1.5)',
+}
+const P_OUTFIT_COLOR: Record<string, string> = {
+  rose: 'red', orange: 'brown', pink: 'red', green: 'green', blue: 'blue',
+  purple: 'purple', yellow: 'yellow', charcoal: 'black', red: 'red', brown: 'brown',
+}
+const P_SKIN_TONE: Record<string, string> = {
+  light: 'light', tan: 'tanned2', brown: 'dark2', dark: 'darkelf2', warm: 'tanned2',
+}
+async function pLoadImg(src: string): Promise<HTMLImageElement> {
+  return new Promise((res, rej) => { const i = new Image(); i.onload=()=>res(i); i.onerror=()=>rej(); i.src=src })
+}
+const P_TORSO_DIR: Record<string, string> = {
+  hoodie: 'hoodie_f', apron: 'apron_f', dress: 'dress_f', jacket: 'jacket_f',
+}
+const P_TORSO_DIR_M: Record<string, string> = {
+  hoodie: 'hoodie_m', apron: 'apron_m', dress: 'shirt_m', jacket: 'jacket_m',
+}
+async function pComposite(source: CharacterSettings): Promise<string> {
+  const SZ=64, SC=3, canvas=document.createElement('canvas')
+  canvas.width=SZ*SC; canvas.height=SZ*SC
+  const ctx=canvas.getContext('2d')!; ctx.imageSmoothingEnabled=false
+  const isMale=source.gender==='male', gKey=isMale?'m':'f', gender=isMale?'male':'female'
+  const oColor=P_OUTFIT_COLOR[source.outfit_color as string]||'blue'
+  const hairFilter=P_HAIR_FILTERS[source.hair_color as string]||'none'
+  const hairStyle=source.hair_style||'long'
+  const skinFile=P_SKIN_TONE[source.skin_tone as string]||'light'
+  const outfit=source.outfit||'hoodie'
+  const isDress=outfit==='dress'
+  const torsoDir=isMale?(P_TORSO_DIR_M[outfit]||'shirt_m'):(P_TORSO_DIR[outfit]||'tunic_f')
+  const accessory=source.accessory||'none'
+  const eyeColor=source.eye_color||'brown'
+  const layers=[
+    {src:`${P_SPRITE_BASE}/skin/${gender}_${skinFile}.png`},
+    {src:`${P_SPRITE_BASE}/face/${eyeColor}.png`},
+    ...(!isDress?[{src:`${P_SPRITE_BASE}/legs/pants_${gKey}/${oColor}.png`}]:[]),
+    {src:`${P_SPRITE_BASE}/torso/${torsoDir}/${oColor}.png`},
+    ...(accessory!=='none'?[{src:`${P_SPRITE_BASE}/accessories/${accessory}.png`}]:[]),
+    {src:`${P_SPRITE_BASE}/hair/${hairStyle}.png`,filter:hairFilter},
+  ]
+  for(const l of layers){try{const img=await pLoadImg(l.src);ctx.filter=(l.filter&&l.filter!=='none')?l.filter:'none';ctx.drawImage(img,0,SZ*2,SZ,SZ,0,0,SZ*SC,SZ*SC)}catch{}}
+  ctx.filter='none'; return canvas.toDataURL('image/png')
+}
+const posterSpriteUrl = ref('')
+const gachaSpinning = ref(false)
+async function regenPosterSprite() { posterSpriteUrl.value = await pComposite(posterAvatar.value) }
+watch(posterAvatar, regenPosterSprite, { deep: true })
+
+function posterAvatarHtml(scale = 1) {
+  const src = posterAvatar.value.avatar
+  if (src && src.startsWith('/avatars/')) {
+    const h = Math.round(130 * scale)
+    return `<img src="${src}" style="height:${h}px;width:auto;image-rendering:pixelated;image-rendering:crisp-edges;" />`
+  }
+  const url = posterSpriteUrl.value
+  const sz = Math.round(96 * scale)
+  if (!url) return `<div style="width:${sz}px;height:${sz}px;background:rgba(0,0,0,0.05);border-radius:4px;"></div>`
+  return `<img src="${url}" style="width:${sz}px;height:${sz}px;image-rendering:pixelated;image-rendering:crisp-edges;" />`
+}
+
+function pick<T>(arr: readonly T[]): T { return arr[Math.floor(Math.random() * arr.length)] }
+
+async function randomizeAvatar() {
+  gachaSpinning.value = true
+  await new Promise(r => setTimeout(r, 300))
+  const p = pick(POSTER_PRESET_AVATARS)
+  posterAvatar.value = { ...posterAvatar.value, avatar: p.src, avatar_type: 'preset' }
+  avatarSaved.value = false
+  gachaSpinning.value = false
+}
+
+async function loadPosterAvatar() {
+  try {
+    const res = await fetch(`${BASE}/api/character/settings`)
+    const data = await res.json()
+    const isPreset = data.avatar && (data.avatar as string).startsWith('/avatars/')
+    posterAvatar.value = {
+      ...defaultCharacterSettings,
+      ...data,
+      avatar: isPreset ? data.avatar : '/avatars/f_hoodie.png',
+      avatar_type: 'preset',
+    }
+    avatarSaved.value = true
+  } catch {
+    avatarSaved.value = false
+  }
+  regenPosterSprite()
+}
+
+async function savePosterAvatar(openChatAfterSave = false) {
+  avatarSaving.value = true
+  const payload = {
+    ...posterAvatar.value,
+    avatar_type: 'preset',
+  }
+  try {
+    const res = await fetch(`${BASE}/api/character/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '')
+      showToast(`保存失敗 (${res.status}): ${txt.slice(0, 80)}`, 'error')
+    } else {
+      posterAvatar.value = payload
+      avatarSaved.value = true
+      localStorage.setItem('uword-pixel-avatar-customized', '1')
+    }
+  } catch (e) {
+    showToast(`保存エラー: ${String(e).slice(0, 80)}`, 'error')
+    console.error('savePosterAvatar error:', e)
+  } finally {
+    avatarSaving.value = false
+  }
+  window.dispatchEvent(new CustomEvent('uword-avatar-updated', { detail: payload }))
+  if (openChatAfterSave) {
+    window.dispatchEvent(new CustomEvent('uword-open-character-chat'))
+    showToast('アバターを決定しました。AIキャラクターと会話できます', 'success')
+  } else {
+    showToast('アバターを保存しました', 'success')
+  }
+}
 
 // クレデンシャル（localStorage に永続化）
 function safeParseLocalStorage<T>(key: string, fallback: T): T {
@@ -1303,6 +1642,7 @@ async function openCustomerPortal() {
   const data = await res.json()
   if (data.url) window.location.href = data.url
 }
+void openCustomerPortal
 
 function selectPlatform(platform: string) {
   if (PREMIUM_PLATFORMS.has(platform) && !isPremium.value) {
@@ -1311,6 +1651,7 @@ function selectPlatform(platform: string) {
   }
   activePlatform.value = platform
 }
+
 // ────────────────────────────────────────────────────────────
 
 const activePlatform = ref('uword')
@@ -2092,6 +2433,7 @@ onMounted(() => {
   fetchJobs()
   fetchReview()
   fetchDetailLogs()
+  loadPosterAvatar()
   checkSubscription()
   // Stripeリダイレクト後の処理
   if (window.location.search.includes('session_id=')) {
@@ -2686,6 +3028,7 @@ onMounted(() => {
   max-width: 160px;
   font-weight: 600;
 }
+
 
 .image-placeholder {
   font-size: 12px;
@@ -3919,6 +4262,300 @@ onMounted(() => {
   margin-bottom: 8px; cursor: pointer; display: flex; gap: 6px; align-items: center;
 }
 .profile-hint-link { font-weight: 600; text-decoration: underline; color: #92400e; }
+
+.avatar-builder-card {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1.5px solid rgba(155, 89, 182, 0.18);
+  border-radius: 22px;
+  padding: 16px;
+  margin: 16px 0;
+  box-shadow: 0 10px 30px rgba(155, 89, 182, 0.1);
+}
+.avatar-builder-preview {
+  min-height: 188px;
+  background:
+    linear-gradient(45deg, rgba(155, 89, 182, 0.08) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(231, 84, 128, 0.08) 25%, transparent 25%),
+    #fff;
+  background-size: 18px 18px;
+  border: 1px solid rgba(155, 89, 182, 0.14);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.avatar-builder-pixel {
+  image-rendering: pixelated;
+  animation: avatar-bob 1.3s ease-in-out infinite;
+}
+@keyframes avatar-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.avatar-builder-status {
+  color: var(--accent-lavender);
+  font-size: 11px;
+  font-weight: 700;
+}
+.btn-gacha {
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 20px;
+  border: none;
+  background: linear-gradient(135deg, #e75480, #9b59b6);
+  color: #fff;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  box-shadow: 0 3px 12px rgba(231, 84, 128, 0.35);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.btn-gacha:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(231, 84, 128, 0.45);
+}
+.btn-gacha:active:not(:disabled) { transform: scale(0.96); }
+.btn-gacha:disabled { opacity: 0.7; cursor: default; }
+@keyframes gacha-spin {
+  0%   { transform: rotate(0deg) scale(1); }
+  25%  { transform: rotate(-8deg) scale(1.08); }
+  50%  { transform: rotate(8deg) scale(0.95); }
+  75%  { transform: rotate(-4deg) scale(1.05); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+.gacha-spin { animation: gacha-spin 0.35s ease-in-out; }
+.avatar-builder-heading {
+  margin-bottom: 12px;
+}
+.avatar-builder-heading h3 {
+  color: var(--text-main);
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+.avatar-builder-heading p {
+  color: var(--text-sub);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.avatar-presets {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.avatar-presets button {
+  min-height: 72px;
+  border: 1.5px solid rgba(155, 89, 182, 0.16);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.72);
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+.avatar-presets button.active,
+.avatar-presets button:hover {
+  border-color: var(--accent-lavender);
+  background: rgba(155, 89, 182, 0.1);
+  color: var(--text-main);
+}
+.btn-avatar-save {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  border: 0;
+  border-radius: 999px;
+  padding: 11px 18px;
+  color: #3d1a4a;
+  background: linear-gradient(135deg, var(--accent-rose), var(--accent-lavender));
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(231, 84, 128, 0.35);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.btn-avatar-save:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(231, 84, 128, 0.45);
+}
+.btn-avatar-save:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+/* ── customizer rows ── */
+.cust-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.cust-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7a4f9a;
+  letter-spacing: 0.3px;
+}
+.cust-seg {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cust-seg-wrap { flex-wrap: wrap; }
+.cust-seg button {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 2px solid #e0d0f0;
+  background: #f8f5ff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.14s;
+}
+.cust-seg button:hover  { background: #ede0ff; border-color: #c9aef5; }
+.cust-seg button.active { background: #ede0ff; border-color: #9b59b6; color: #6a2090; font-weight: 600; }
+
+.cust-outfit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.cust-outfit-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  background: #f8f5ff;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  padding: 8px 4px 6px;
+  cursor: pointer;
+  transition: all 0.14s;
+}
+.cust-outfit-btn:hover  { background: #f0e8ff; border-color: #c9aef5; }
+.cust-outfit-btn.active { border-color: #9b59b6; background: #ede0ff; box-shadow: 0 0 0 2px #d8b8f8; }
+.cust-outfit-thumb {
+  height: 80px;
+  width: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.cust-outfit-label {
+  font-size: 11px;
+  color: #666;
+  text-align: center;
+  line-height: 1.2;
+}
+
+
+.cust-name-input {
+  width: 100%;
+  max-width: 280px;
+  padding: 8px 12px;
+  border: 2px solid #e0d0f0;
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.14s;
+  background: #faf8ff;
+}
+.cust-name-input:focus { border-color: #9b59b6; }
+
+/* legacy — keep for grid reference */
+.poster-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 8px;
+}
+.poster-preset-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: #f8f5ff;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  padding: 10px 6px 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.poster-preset-btn:hover { background: #f0e8ff; border-color: #c9aef5; }
+.poster-preset-btn.active { border-color: #9b59b6; background: #ede0ff; box-shadow: 0 0 0 2px #c9aef5; }
+.poster-preset-thumb {
+  height: 88px;
+  width: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.poster-preset-label {
+  font-size: 11px;
+  color: #666;
+  text-align: center;
+}
+.avatar-builder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.avatar-control-wide {
+  grid-column: span 2;
+}
+.avatar-control > span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.avatar-segment {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+.avatar-segment button {
+  min-height: 30px;
+  border: 1.5px solid rgba(155, 89, 182, 0.18);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.avatar-segment button.active {
+  border-color: var(--accent-lavender);
+  background: rgba(155, 89, 182, 0.12);
+  color: var(--text-main);
+}
+.avatar-color-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+.avatar-color {
+  height: 30px;
+  border: 2px solid rgba(90, 53, 117, 0.14);
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35);
+}
+.avatar-color.active {
+  border-color: var(--accent-lavender);
+  box-shadow: 0 0 0 3px rgba(155, 89, 182, 0.16), inset 0 0 0 2px rgba(255,255,255,0.38);
+}
+.accessory-segment {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
 
 /* ============================================================ */
 /* クレデンシャル設定パネル */

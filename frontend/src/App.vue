@@ -6,11 +6,13 @@
     <main class="main">
       <Poster />
     </main>
+    <CharacterWidget :start-hidden="true" />
   </div>
 </template>
 
 <script setup lang="ts">
 import Poster from './views/Poster.vue'
+import CharacterWidget from './components/CharacterWidget.vue'
 </script>
 
 <style>

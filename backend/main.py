@@ -2,6 +2,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Form, UploadFile, File, Query, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -69,6 +70,11 @@ sys.path.insert(0, str(AP_BACKEND))
 _logger = logging.getLogger(__name__)
 
 app = FastAPI(lifespan=lifespan)
+
+# アバター画像配信用
+_UPLOADS_DIR = Path(__file__).parent / 'uploads'
+_UPLOADS_DIR.mkdir(exist_ok=True)
+app.mount('/uploads', StaticFiles(directory=str(_UPLOADS_DIR)), name='uploads')
 
 _allowed_origins = os.environ.get(
     'ALLOWED_ORIGINS', 'http://localhost:5200,http://127.0.0.1:5200'
@@ -1893,3 +1899,134 @@ async def stripe_webhook(request: Request):
         return {"ok": True, "type": etype}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ──────────────────────────────────────────────────────────
+# キャラクターアシスタント
+# ──────────────────────────────────────────────────────────
+
+_CHARACTER_PATH = Path(os.environ.get(
+    'UWORD_CHARACTER_PATH',
+    str(Path(__file__).parent / 'character_settings.json')
+))
+
+
+class CharacterSettings(BaseModel):
+    name: str = 'ユイ'
+    avatar: str = 'pixel'
+    avatar_type: str = 'pixel'
+    gender: Literal['female', 'male', 'neutral'] = 'neutral'
+    hair_style: Literal['short', 'bob', 'long', 'spiky'] = 'bob'
+    hair_color: Literal['brown', 'black', 'gray', 'blonde', 'green', 'purple'] = 'brown'
+    outfit: Literal['hoodie', 'apron', 'dress', 'jacket'] = 'hoodie'
+    outfit_color: Literal['rose', 'orange', 'pink', 'green', 'blue', 'purple'] = 'rose'
+    skin_tone: Literal['light', 'tan', 'brown', 'dark'] = 'light'
+    eye_color: Literal['brown', 'blue', 'green', 'gray'] = 'brown'
+    accessory: Literal['none', 'scarf', 'glasses', 'necklace', 'belt'] = 'scarf'
+    personality: str = '明るく元気で、投稿のお手伝いが大好きなAIアシスタントです。'
+    greeting_morning: str = 'おはよう！今日も一緒に頑張ろうね✨'
+    greeting_afternoon: str = 'こんにちは！投稿のお手伝いをするよ〜！'
+    greeting_evening: str = '今日もお疲れ様！夜の投稿もバッチリだよ🌙'
+
+
+class CharacterChatRequest(BaseModel):
+    message: str
+    history: list[dict] = []
+
+
+def _load_character() -> CharacterSettings:
+    if _CHARACTER_PATH.exists():
+        return CharacterSettings(**json.loads(_CHARACTER_PATH.read_text()))
+    return CharacterSettings()
+
+
+async def _call_gemini_text(prompt: str) -> str:
+    """Gemini API を呼び出してプレーンテキストを返す"""
+    import urllib.request as _r
+    api_key = os.environ.get('GEMINI_API_KEY', '')
+    if not api_key:
+        raise ValueError('GEMINI_API_KEY not set')
+    url = (f'https://generativelanguage.googleapis.com/v1beta/models/'
+           f'gemini-2.5-flash:generateContent?key={api_key}')
+    body = json.dumps({'contents': [{'parts': [{'text': prompt}]}]}).encode('utf-8')
+    req = _r.Request(url, data=body, headers={'Content-Type': 'application/json'}, method='POST')
+    loop = asyncio.get_running_loop()
+    def _fetch():
+        with _r.urlopen(req, timeout=30) as r:
+            return json.loads(r.read())
+    resp = await loop.run_in_executor(None, _fetch)
+    return resp['candidates'][0]['content']['parts'][0]['text'].strip()
+
+
+@app.get('/api/character/settings', response_model=CharacterSettings)
+async def get_character_settings():
+    return _load_character()
+
+
+@app.put('/api/character/settings')
+async def save_character_settings(settings: CharacterSettings):
+    _CHARACTER_PATH.write_text(json.dumps(settings.dict(), ensure_ascii=False, indent=2))
+    return {'ok': True}
+
+
+@app.post('/api/character/chat')
+async def character_chat(req: CharacterChatRequest):
+    char = _load_character()
+    import urllib.request as _ur
+
+    api_key = os.environ.get('GEMINI_API_KEY', '')
+    if not api_key:
+        return {'reply': 'APIキーが設定されていません', 'character_name': char.name}
+
+    history_lines = ''
+    for h in req.history[-6:]:
+        role = 'ユーザー' if h.get('role') == 'user' else char.name
+        history_lines += f'{role}: {h.get("content","")[:150]}\n'
+
+    system_text = f"""あなたは「{char.name}」というSNS投稿アシスタントです。
+以下の話し方を絶対に守ること：
+{char.personality}
+返答は100文字以内。"""
+
+    user_text = (f'【会話履歴】\n{history_lines}\n' if history_lines else '') + f'ユーザー: {req.message}'
+
+    body = json.dumps({
+        'system_instruction': {'parts': [{'text': system_text}]},
+        'contents': [{'role': 'user', 'parts': [{'text': user_text}]}],
+        'generationConfig': {'maxOutputTokens': 800, 'temperature': 1.2},
+    }).encode('utf-8')
+
+    url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}'
+
+    def _do_fetch():
+        r = _ur.Request(url, data=body, headers={'Content-Type': 'application/json'}, method='POST')
+        with _ur.urlopen(r, timeout=30) as resp:
+            return json.loads(resp.read())
+
+    try:
+        loop = asyncio.get_running_loop()
+        try:
+            data = await loop.run_in_executor(None, _do_fetch)
+        except Exception as e1:
+            if '503' in str(e1) or '429' in str(e1):
+                await asyncio.sleep(10)
+                data = await loop.run_in_executor(None, _do_fetch)
+            else:
+                raise
+        reply = data['candidates'][0]['content']['parts'][0]['text'].strip()
+        return {'reply': reply, 'character_name': char.name}
+    except Exception as e:
+        _logger.warning('character_chat error: %s %s', type(e).__name__, e)
+        return {'reply': 'ごめんなさい、うまく答えられませんでした😢', 'character_name': char.name}
+
+
+@app.post('/api/character/avatar')
+async def upload_character_avatar(image: UploadFile = File(...)):
+    suffix = Path(image.filename).suffix.lower()
+    if suffix not in _ALLOWED_IMAGE_SUFFIXES:
+        return {'success': False, 'error': f'許可されていないファイル形式: {suffix}'}
+    filename = f'avatar{suffix}'
+    save_path = _UPLOADS_DIR / filename
+    with open(save_path, 'wb') as f:
+        shutil.copyfileobj(image.file, f)
+    return {'success': True, 'url': f'/uploads/{filename}'}
